@@ -1,0 +1,9 @@
+repositories:
+    yolact_ros_msgs:
+        type: git
+        url: https://github.com/Eruvae/yolact_ros_msgs.git
+        version: ROS2
+    rosidl:
+        type: git
+        url: https://github.com/ros2/rosidl_defaults.git
+        version: eloquent
