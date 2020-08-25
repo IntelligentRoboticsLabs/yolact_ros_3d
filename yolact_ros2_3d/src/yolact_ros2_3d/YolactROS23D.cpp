@@ -100,10 +100,10 @@ YolactROS23D::on_cleanup(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Cleanning Up from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  //darknet3d_pub_.reset();
-  //markers_pub_.reset();
+  // darknet3d_pub_.reset();
+  // markers_pub_.reset();
 
-  return CallbackReturnT::SUCCESS;
+	return CallbackReturnT::SUCCESS;
 }
 
 CallbackReturnT

@@ -15,8 +15,8 @@
 /* Author: Francisco Martín fmrico@gmail.com */
 /* Author: Fernando González fergonzaramos@yahoo.es */
 
-#ifndef YOLACT_ROS2_3D__YOLACT_ROS23D_HPP_
-#define YOLACT_ROS2_3D__YOLACT_ROS23D_HPP_
+#ifndef YOLACT_ROS2_3D__YOLACTROS23D_HPP_
+#define YOLACT_ROS2_3D__YOLACTROS23D_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
@@ -51,4 +51,4 @@ private:
 
 }  // namespace yolact_ros2_3d
 
-#endif  // YOLACT_ROS2_3D__YOLACT_ROS23D_HPP_
+#endif  // YOLACT_ROS2_3D__YOLACTROS23D_HPP_
