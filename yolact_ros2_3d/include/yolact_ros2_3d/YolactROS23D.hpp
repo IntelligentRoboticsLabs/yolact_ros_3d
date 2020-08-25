@@ -15,13 +15,13 @@
 /* Author: Francisco Martín fmrico@gmail.com */
 /* Author: Fernando González fergonzaramos@yahoo.es */
 
-#ifndef YOLACT_ROS2_3D__YOLACT_ROS2_3D_HPP__
-#define YOLACT_ROS2_3D__YOLACT_ROS2_3D_HPP__
+#ifndef YOLACT_ROS2_3D__YOLACT_ROS23D_HPP_
+#define YOLACT_ROS2_3D__YOLACT_ROS23D_HPP_
 
-#include <string>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <string>
 
 namespace yolact_ros2_3d
 {
@@ -49,6 +49,6 @@ private:
 	bool pc_received_;
 };
 
-}	//namespace yolact_ros2_3d
+}  // namespace yolact_ros2_3d
 
-#endif	// YOLACT_ROS2_3D__YOLACT_ROS2_3D_HPP__
+#endif  // YOLACT_ROS2_3D__YOLACT_ROS23D_HPP_

@@ -20,6 +20,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(lifecycle_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(gb_visual_detection_3d_msgs REQUIRED)
 find_package(yolact_ros2_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
@@ -28,6 +29,7 @@ set(dependencies
   rclcpp
   rclcpp_lifecycle
   lifecycle_msgs
+  sensor_msgs
   gb_visual_detection_3d_msgs
   yolact_ros2_msgs
   cv_bridge

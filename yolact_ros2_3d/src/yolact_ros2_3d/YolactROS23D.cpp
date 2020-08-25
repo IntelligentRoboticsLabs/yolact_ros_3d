@@ -28,13 +28,15 @@ YolactROS23D::YolactROS23D()
 {
 	// Init Params
 
-  //this->declare_parameter("darknet_ros_topic", "/darknet_ros/bounding_boxes");
-  //this->declare_parameter("output_bbx3d_topic", "/darknet_ros_3d/bounding_boxes");
-  this->declare_parameter("point_cloud_topic", "/camera/depth_registered/points");
-  //this->declare_parameter("working_frame", "camera_link");
-  //this->declare_parameter("maximum_detection_threshold", 0.3f);
-  //this->declare_parameter("minimum_probability", 0.3f);
-  //this->declare_parameter("interested_classes");
+  // this->declare_parameter("darknet_ros_topic", "/darknet_ros/bounding_boxes");
+  // this->declare_parameter("output_bbx3d_topic", "/darknet_ros_3d/bounding_boxes");
+
+	this->declare_parameter("point_cloud_topic", "/camera/depth_registered/points");
+
+	// this->declare_parameter("working_frame", "camera_link");
+  // this->declare_parameter("maximum_detection_threshold", 0.3f);
+  // this->declare_parameter("minimum_probability", 0.3f);
+  // this->declare_parameter("interested_classes");
 
   this->configure();
 
@@ -55,13 +57,15 @@ YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Configuring from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  //this->get_parameter("darknet_ros_topic", input_bbx_topic_);
-  //this->get_parameter("output_bbx3d_topic", output_bbx3d_topic_);
-  this->get_parameter("point_cloud_topic", point_cloud_topic_);
-  //this->get_parameter("working_frame", working_frame_);
-  //this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
-  //this->get_parameter("minimum_probability", minimum_probability_);
-  //this->get_parameter("interested_classes", interested_classes_);
+  // this->get_parameter("darknet_ros_topic", input_bbx_topic_);
+  // this->get_parameter("output_bbx3d_topic", output_bbx3d_topic_);
+
+	this->get_parameter("point_cloud_topic", point_cloud_topic_);
+
+  // this->get_parameter("working_frame", working_frame_);
+  // this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
+  // this->get_parameter("minimum_probability", minimum_probability_);
+  // this->get_parameter("interested_classes", interested_classes_);
 
   return CallbackReturnT::SUCCESS;
 }
@@ -72,8 +76,8 @@ YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Activating from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  //darknet3d_pub_->on_activate();
-  //markers_pub_->on_activate();
+  // darknet3d_pub_->on_activate();
+  // markers_pub_->on_activate();
 
   return CallbackReturnT::SUCCESS;
 }
@@ -84,8 +88,8 @@ YolactROS23D::on_deactivate(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Deactivating from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  //darknet3d_pub_->on_deactivate();
-  //markers_pub_->on_deactivate();
+  // darknet3d_pub_->on_deactivate();
+  // markers_pub_->on_deactivate();
 
   return CallbackReturnT::SUCCESS;
 }
@@ -108,8 +112,8 @@ YolactROS23D::on_shutdown(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Shutting Down from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  //darknet3d_pub_.reset();
-  //markers_pub_.reset();
+  // darknet3d_pub_.reset();
+  // markers_pub_.reset();
 
   return CallbackReturnT::SUCCESS;
 }
@@ -122,4 +126,4 @@ YolactROS23D::on_error(const rclcpp_lifecycle::State & state)
   return CallbackReturnT::SUCCESS;
 }
 
-}	// namespace yolact_ros2_3d
+}  // namespace yolact_ros2_3d

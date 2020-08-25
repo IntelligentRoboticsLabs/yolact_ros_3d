@@ -1,4 +1,4 @@
-yolact3d_node:
+yolact_ros2_3d_node:
   ros__parameters:
     darknet_ros_topic: /darknet_ros/bounding_boxes
     output_bbx3d_topic: /darknet_ros_3d/bounding_boxes
