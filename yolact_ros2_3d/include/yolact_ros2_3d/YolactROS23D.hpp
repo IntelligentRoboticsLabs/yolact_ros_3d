@@ -15,11 +15,13 @@
 /* Author: Francisco Martín fmrico@gmail.com */
 /* Author: Fernando González fergonzaramos@yahoo.es */
 
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp_lifecycle/lifecycle_node.hpp>
-
 #ifndef YOLACT_ROS2_3D__YOLACT_ROS2_3D_HPP__
 #define YOLACT_ROS2_3D__YOLACT_ROS2_3D_HPP__
+
+#include <string>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_lifecycle/lifecycle_node.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 namespace yolact_ros2_3d
 {
@@ -27,8 +29,24 @@ class YolactROS23D : public rclcpp_lifecycle::LifecycleNode
 {
 public:
 	YolactROS23D();
-private:
 
+private:
+	using CallbackReturnT =
+    rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+
+  CallbackReturnT on_configure(const rclcpp_lifecycle::State & state);
+  CallbackReturnT on_activate(const rclcpp_lifecycle::State & state);
+  CallbackReturnT on_deactivate(const rclcpp_lifecycle::State & state);
+  CallbackReturnT on_cleanup(const rclcpp_lifecycle::State & state);
+  CallbackReturnT on_shutdown(const rclcpp_lifecycle::State & state);
+  CallbackReturnT on_error(const rclcpp_lifecycle::State & state);
+
+	void pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
+
+	rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
+	sensor_msgs::msg::PointCloud2 orig_point_cloud_;
+	std::string point_cloud_topic_;
+	bool pc_received_;
 };
 
 }	//namespace yolact_ros2_3d
