@@ -45,6 +45,15 @@ add_library(${PROJECT_NAME} SHARED
 )
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 
+add_executable(yolact_ros2_3d_node src/yolact3d_node.cpp)
+ament_target_dependencies(yolact_ros2_3d_node ${dependencies})
+target_link_libraries(yolact_ros2_3d_node ${PROJECT_NAME})
+
+target_include_directories(yolact_ros2_3d_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
 #########
 #INSTALL#
 #########
@@ -52,10 +61,11 @@ ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 install(DIRECTORY include/
   DESTINATION include/
 )
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME}/)
 
 install(TARGETS
   ${PROJECT_NAME}
-  #darknet3d_node
+  yolact_ros2_3d_node
   EXPORT export_${PROJECT_NAME}
   DESTINATION lib/${PROJECT_NAME}
   LIBRARY DESTINATION lib
