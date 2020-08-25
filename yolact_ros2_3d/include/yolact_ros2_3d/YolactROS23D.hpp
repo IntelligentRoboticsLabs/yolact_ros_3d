@@ -28,10 +28,10 @@ namespace yolact_ros2_3d
 class YolactROS23D : public rclcpp_lifecycle::LifecycleNode
 {
 public:
-	YolactROS23D();
+  YolactROS23D();
 
 private:
-	using CallbackReturnT =
+  using CallbackReturnT =
     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
   CallbackReturnT on_configure(const rclcpp_lifecycle::State & state);
@@ -41,12 +41,12 @@ private:
   CallbackReturnT on_shutdown(const rclcpp_lifecycle::State & state);
   CallbackReturnT on_error(const rclcpp_lifecycle::State & state);
 
-	void pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
+  void pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
 
-	rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
-	sensor_msgs::msg::PointCloud2 orig_point_cloud_;
-	std::string point_cloud_topic_;
-	bool pc_received_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
+  sensor_msgs::msg::PointCloud2 orig_point_cloud_;
+  std::string point_cloud_topic_;
+  bool pc_received_;
 };
 
 }  // namespace yolact_ros2_3d
