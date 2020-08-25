@@ -54,7 +54,7 @@ YolactROS23D::pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
 void
 YolactROS23D::update()
 {
-  ;
+  RCLCPP_INFO(this->get_logger(), "Update!\n");
 }
 
 CallbackReturnT

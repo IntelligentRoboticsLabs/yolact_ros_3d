@@ -30,7 +30,7 @@ class YolactROS23D : public rclcpp_lifecycle::LifecycleNode
 public:
   YolactROS23D();
 
-	void update();
+  void update();
 
 private:
   using CallbackReturnT =
