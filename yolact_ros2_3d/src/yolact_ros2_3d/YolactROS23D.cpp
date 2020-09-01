@@ -18,9 +18,9 @@
 #include "yolact_ros2_3d/YolactROS23D.hpp"
 #include <tf2/transform_datatypes.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
-#include <memory>
 #include <sensor_msgs/point_cloud_conversion.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
+#include <memory>
 
 using std::placeholders::_1;
 using CallbackReturnT =
