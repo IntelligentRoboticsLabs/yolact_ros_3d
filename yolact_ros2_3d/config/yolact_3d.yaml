@@ -1,6 +1,6 @@
 yolact_ros2_3d_node:
   ros__parameters:
-    darknet_ros_topic: /darknet_ros/bounding_boxes
+    yolact_ros_topic: /yolact_ros2/detections
     output_bbx3d_topic: /darknet_ros_3d/bounding_boxes
     point_cloud_topic: /camera/pointcloud
     working_frame: camera_link

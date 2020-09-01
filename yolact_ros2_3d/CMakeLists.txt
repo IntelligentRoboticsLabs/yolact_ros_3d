@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(yolact_ros2_3d)
 
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
+
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
@@ -24,6 +26,11 @@ find_package(sensor_msgs REQUIRED)
 find_package(gb_visual_detection_3d_msgs REQUIRED)
 find_package(yolact_ros2_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
+find_package(eigen3_cmake_module REQUIRED)
+find_package(Eigen3)
 
 set(dependencies
   rclcpp
@@ -33,11 +40,15 @@ set(dependencies
   gb_visual_detection_3d_msgs
   yolact_ros2_msgs
   cv_bridge
+  tf2
+  tf2_ros
+  tf2_sensor_msgs
 )
 
 include_directories(
   include/
   ${OpenCV_INCLUDE_DIRS}
+  ${Eigen3_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME} SHARED
@@ -52,6 +63,7 @@ target_link_libraries(yolact_ros2_3d_node ${PROJECT_NAME})
 target_include_directories(yolact_ros2_3d_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
+  ${Eigen3_INCLUDE_DIRS}
 )
 
 #########

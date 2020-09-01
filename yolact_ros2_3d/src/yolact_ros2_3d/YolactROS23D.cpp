@@ -16,6 +16,10 @@
 /* Author: Fernando González fergonzaramos@yahoo.es */
 
 #include "yolact_ros2_3d/YolactROS23D.hpp"
+#include <tf2/transform_datatypes.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <sensor_msgs/point_cloud_conversion.hpp>
+#include <sensor_msgs/msg/point_field.hpp>
 
 using std::placeholders::_1;
 using CallbackReturnT =
@@ -24,16 +28,19 @@ using CallbackReturnT =
 namespace yolact_ros2_3d
 {
 YolactROS23D::YolactROS23D()
-: LifecycleNode("yolact_ros2_3d_node"), pc_received_(false)
+: LifecycleNode("yolact_ros2_3d_node"), clock_(RCL_SYSTEM_TIME),
+  tfBuffer_(std::make_shared<rclcpp::Clock>(clock_)),
+  tfListener_(tfBuffer_, true), pc_received_(false)
 {
   // Init Params
 
-  // this->declare_parameter("darknet_ros_topic", "/darknet_ros/bounding_boxes");
+  this->declare_parameter("yolact_ros_topic", "/yolact_ros2/detections");
+
   // this->declare_parameter("output_bbx3d_topic", "/darknet_ros_3d/bounding_boxes");
 
   this->declare_parameter("point_cloud_topic", "/camera/depth_registered/points");
+  this->declare_parameter("working_frame", "camera_link");
 
-  // this->declare_parameter("working_frame", "camera_link");
   // this->declare_parameter("maximum_detection_threshold", 0.3f);
   // this->declare_parameter("minimum_probability", 0.3f);
   // this->declare_parameter("interested_classes");
@@ -42,6 +49,11 @@ YolactROS23D::YolactROS23D()
 
   point_cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
     point_cloud_topic_, 1, std::bind(&YolactROS23D::pointCloudCb, this, std::placeholders::_1));
+
+  yolact_ros_sub_ = this->create_subscription<yolact_ros2_msgs::msg::Detections>(
+    input_bbx_topic_, 1, std::bind(&YolactROS23D::yolactCb, this, std::placeholders::_1));
+
+  this->activate();
 }
 
 void
@@ -52,8 +64,42 @@ YolactROS23D::pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
 }
 
 void
+YolactROS23D::yolactCb(const yolact_ros2_msgs::msg::Detections::SharedPtr msg)
+{
+  RCLCPP_INFO(this->get_logger(), "Received!\n");
+  original_detections_ = msg->detections;
+  last_detection_ts_ = clock_.now();
+}
+
+void
 YolactROS23D::update()
 {
+  if (this->get_current_state().id() != lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+    return;
+  }
+
+  if ((clock_.now() - last_detection_ts_).seconds() > 2.0 || !pc_received_) {
+    return;
+  }
+
+  sensor_msgs::msg::PointCloud2 local_pointcloud;
+  geometry_msgs::msg::TransformStamped transform;
+  sensor_msgs::msg::PointCloud cloud_pc;
+
+  //gb_visual_detection_3d_msgs::msg::BoundingBoxes3d msg;
+
+  try {
+    transform = tfBuffer_.lookupTransform(working_frame_, orig_point_cloud_.header.frame_id,
+        orig_point_cloud_.header.stamp, tf2::durationFromSec(2.0));
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_ERROR(this->get_logger(), "Transform error of sensor data: %s, %s\n",
+      ex.what(), "quitting callback");
+    return;
+  }
+  tf2::doTransform<sensor_msgs::msg::PointCloud2>(
+    orig_point_cloud_, local_pointcloud, transform);
+  sensor_msgs::convertPointCloud2ToPointCloud(local_pointcloud, cloud_pc);
+
   RCLCPP_INFO(this->get_logger(), "Update!\n");
 }
 
@@ -63,12 +109,13 @@ YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Configuring from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  // this->get_parameter("darknet_ros_topic", input_bbx_topic_);
+  this->get_parameter("yolact_ros_topic", input_bbx_topic_);
+
   // this->get_parameter("output_bbx3d_topic", output_bbx3d_topic_);
 
   this->get_parameter("point_cloud_topic", point_cloud_topic_);
+  this->get_parameter("working_frame", working_frame_);
 
-  // this->get_parameter("working_frame", working_frame_);
   // this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
   // this->get_parameter("minimum_probability", minimum_probability_);
   // this->get_parameter("interested_classes", interested_classes_);
