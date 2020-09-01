@@ -18,6 +18,7 @@
 #include "yolact_ros2_3d/YolactROS23D.hpp"
 #include <tf2/transform_datatypes.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <memory>
 #include <sensor_msgs/point_cloud_conversion.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
 
@@ -86,7 +87,7 @@ YolactROS23D::update()
   geometry_msgs::msg::TransformStamped transform;
   sensor_msgs::msg::PointCloud cloud_pc;
 
-  //gb_visual_detection_3d_msgs::msg::BoundingBoxes3d msg;
+  // gb_visual_detection_3d_msgs::msg::BoundingBoxes3d msg;
 
   try {
     transform = tfBuffer_.lookupTransform(working_frame_, orig_point_cloud_.header.frame_id,
