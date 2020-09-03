@@ -107,7 +107,7 @@ YolactROS23D::pixelBelongsToBbox(yolact_ros2_msgs::msg::Mask mask, size_t x, siz
 
   index = y * mask.width + x;
   byte_ind = index / 8;
-  bit_ind = 7 - (index % 8); // bitorder 'big'
+  bit_ind = 7 - (index % 8);
   return mask.mask[byte_ind] & (1 << bit_ind);
 }
 
@@ -133,11 +133,9 @@ YolactROS23D::getMask(yolact_ros2_msgs::msg::Detection det, cv::Mat * output_mas
    */
 
   *output_mask = cv::Mat(det.mask.height, det.mask.width, CV_8U);
-  for(int x = 0; x < det.mask.width; x++)
-  {
-    for(int y = 0; y < det.mask.height; y++)
-    {
-      if(pixelBelongsToBbox(det.mask, x, y))
+  for (int x = 0; x < det.mask.width; x++) {
+    for (int y = 0; y < det.mask.height; y++) {
+      if (pixelBelongsToBbox(det.mask, x, y))
         output_mask->at<unsigned char>(y, x) = 255;
       else
         output_mask->at<unsigned char>(y, x) = 0;
@@ -164,7 +162,8 @@ YolactROS23D::erodeMask(std::string class_name, cv::Mat mask, cv::Mat * eroded_m
   // Make the kernel:
 
   kernel = cv::getStructuringElement(
-    cv::MORPH_RECT, cv::Size((int)sqrt(kernel_area), (int)sqrt(kernel_area)));
+    cv::MORPH_RECT, cv::Size(static_cast<int>(sqrt(kernel_area)),
+    static_cast<int>(sqrt(kernel_area))));
 
   // Erode the mask:
 
