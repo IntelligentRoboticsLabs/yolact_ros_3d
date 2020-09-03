@@ -19,9 +19,12 @@
 #include <tf2/transform_datatypes.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 #include <stdlib.h>
+#include <memory>
+#include <string>
+#include <vector>
+#include <utility>
 #include <sensor_msgs/point_cloud_conversion.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
-#include <memory>
 
 using std::placeholders::_1;
 using CallbackReturnT =
@@ -78,7 +81,6 @@ YolactROS23D::yolactCb(const yolact_ros2_msgs::msg::Detections::SharedPtr msg)
 bool
 YolactROS23D::setErodingFactors()
 {
-
   std::vector<std::string> eroding_factors_v_;
   int eroding_factor;
 
@@ -91,13 +93,13 @@ YolactROS23D::setErodingFactors()
 
   for (unsigned int i = 0; i < interested_classes_.size(); i++) {
     eroding_factor =  atoi(eroding_factors_v_[i].c_str());
-    if(eroding_factor < 0 || eroding_factor > 100) {
+    if (eroding_factor < 0 || eroding_factor > 100) {
       RCLCPP_ERROR(this->get_logger(), "Eroding Factors Parameter is Invalid!\n");
       return false;
     }
 
     auto element = std::pair<std::string, int>(
-      interested_classes_[i],eroding_factor);
+      interested_classes_[i], eroding_factor);
 
     eroding_factors_.insert(element);
   }
