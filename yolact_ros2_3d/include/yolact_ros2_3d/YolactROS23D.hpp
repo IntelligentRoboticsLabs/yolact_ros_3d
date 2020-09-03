@@ -21,11 +21,15 @@
 #include <tf2/convert.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
+#include <cv_bridge/cv_bridge.h>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <lifecycle_msgs/msg/state.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/point_cloud.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/mat.hpp>
 #include <string>
 #include <vector>
 #include <map>
@@ -53,10 +57,18 @@ private:
   CallbackReturnT on_shutdown(const rclcpp_lifecycle::State & state);
   CallbackReturnT on_error(const rclcpp_lifecycle::State & state);
 
+  /* ----------- */
+
   void pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
   void yolactCb(const yolact_ros2_msgs::msg::Detections::SharedPtr msg);
+  void calculate_boxes(
+    sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
+    gb_visual_detection_3d_msgs::msg::BoundingBoxes3d * boxes);
+  void getMask(yolact_ros2_msgs::msg::Detection det, cv::Mat * output_mask);
+  void erodeMask(std::string class_name, cv::Mat mask, cv::Mat * eroded_mask);
 
   bool setErodingFactors();
+  bool pixelBelongsToBbox(yolact_ros2_msgs::msg::Mask mask, size_t x, size_t y);
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
   rclcpp::Subscription<yolact_ros2_msgs::msg::Detections>::SharedPtr yolact_ros_sub_;
@@ -70,6 +82,7 @@ private:
   std::vector<yolact_ros2_msgs::msg::Detection> original_detections_;
   std::vector<std::string> interested_classes_ = {};
   std::map<std::string, int> eroding_factors_;
+  double minimum_probability_;
   bool pc_received_;
 };
 

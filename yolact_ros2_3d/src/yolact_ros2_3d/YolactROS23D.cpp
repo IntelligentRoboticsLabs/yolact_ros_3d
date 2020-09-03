@@ -19,6 +19,7 @@
 #include <tf2/transform_datatypes.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 #include <stdlib.h>
+#include <math.h>
 #include <sensor_msgs/point_cloud_conversion.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
 #include <memory>
@@ -47,8 +48,8 @@ YolactROS23D::YolactROS23D()
   this->declare_parameter("working_frame", "camera_link");
 
   // this->declare_parameter("maximum_detection_threshold", 0.3f);
-  // this->declare_parameter("minimum_probability", 0.3f);
 
+  this->declare_parameter("minimum_probability", 0.3);
   this->declare_parameter("interested_classes");
   this->declare_parameter("eroding_factors");
 
@@ -61,21 +62,6 @@ YolactROS23D::YolactROS23D()
     input_bbx_topic_, 1, std::bind(&YolactROS23D::yolactCb, this, std::placeholders::_1));
 
   this->activate();
-}
-
-void
-YolactROS23D::pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
-{
-  orig_point_cloud_ = *msg;
-  pc_received_ = true;
-}
-
-void
-YolactROS23D::yolactCb(const yolact_ros2_msgs::msg::Detections::SharedPtr msg)
-{
-  RCLCPP_INFO(this->get_logger(), "Received!\n");
-  original_detections_ = msg->detections;
-  last_detection_ts_ = clock_.now();
 }
 
 bool
@@ -108,6 +94,110 @@ YolactROS23D::setErodingFactors()
   return true;
 }
 
+bool
+YolactROS23D::pixelBelongsToBbox(yolact_ros2_msgs::msg::Mask mask, size_t x, size_t y)
+{
+  /*
+   * Return if pixel (x, y), where 'x' is collumn and 'y' is row belongs to
+   * the bounding box whose mask is 'mask' (encoded as a bitset
+   * -see yolact_ros documentation-)
+   */
+
+  size_t index, byte_ind, bit_ind;
+
+  index = y * mask.width + x;
+  byte_ind = index / 8;
+  bit_ind = 7 - (index % 8); // bitorder 'big'
+  return mask.mask[byte_ind] & (1 << bit_ind);
+}
+
+void
+YolactROS23D::pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+{
+  orig_point_cloud_ = *msg;
+  pc_received_ = true;
+}
+
+void
+YolactROS23D::yolactCb(const yolact_ros2_msgs::msg::Detections::SharedPtr msg)
+{
+  original_detections_ = msg->detections;
+  last_detection_ts_ = clock_.now();
+}
+
+void
+YolactROS23D::getMask(yolact_ros2_msgs::msg::Detection det, cv::Mat * output_mask)
+{
+  /*
+   * Load at 'output_mask' the mask (binary image) of the 'det' detection
+   */
+
+  *output_mask = cv::Mat(det.mask.height, det.mask.width, CV_8U);
+  for(int x = 0; x < det.mask.width; x++)
+  {
+    for(int y = 0; y < det.mask.height; y++)
+    {
+      if(pixelBelongsToBbox(det.mask, x, y))
+        output_mask->at<unsigned char>(y, x) = 255;
+      else
+        output_mask->at<unsigned char>(y, x) = 0;
+    }
+  }
+}
+
+void
+YolactROS23D::erodeMask(std::string class_name, cv::Mat mask, cv::Mat * eroded_mask)
+{
+  /*
+   * Erode mask 'mask' applying eroded factor that corresponds to 'class_name'
+   * and it is loaded at 'eroded_mask'
+   */
+
+  int eroding_factor, kernel_area;
+  cv::Mat kernel;
+
+  // Calculate the are of the Kernel:
+
+  eroding_factor = eroding_factors_[class_name];
+  kernel_area = eroding_factor * (mask.rows * mask.cols) / 100;
+
+  // Make the kernel:
+
+  kernel = cv::getStructuringElement(
+    cv::MORPH_RECT, cv::Size((int)sqrt(kernel_area), (int)sqrt(kernel_area)));
+
+  // Erode the mask:
+
+  cv::erode(mask, *eroded_mask, kernel);
+}
+
+void
+YolactROS23D::calculate_boxes(
+  sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
+  gb_visual_detection_3d_msgs::msg::BoundingBoxes3d * boxes)
+{
+  cv::Mat mask, eroded_mask;
+  boxes->header.stamp = cloud_pc2.header.stamp;
+  boxes->header.frame_id = cloud_pc2.header.frame_id;
+
+  for (auto det : original_detections_) {
+    if ((det.score < minimum_probability_) ||
+      (std::find(interested_classes_.begin(), interested_classes_.end(),
+      det.class_name) == interested_classes_.end()))
+    {
+      continue;
+    }
+
+    getMask(det, &mask);
+    erodeMask(det.class_name, mask, &eroded_mask);
+
+    cv::imshow("Original Mask", mask);
+		cv::waitKey(1);
+    cv::imshow("Eroded Mask", eroded_mask);
+    cv::waitKey(1);
+  }
+}
+
 void
 YolactROS23D::update()
 {
@@ -122,8 +212,7 @@ YolactROS23D::update()
   sensor_msgs::msg::PointCloud2 local_pointcloud;
   geometry_msgs::msg::TransformStamped transform;
   sensor_msgs::msg::PointCloud cloud_pc;
-
-  // gb_visual_detection_3d_msgs::msg::BoundingBoxes3d msg;
+  gb_visual_detection_3d_msgs::msg::BoundingBoxes3d output_bboxes;
 
   try {
     transform = tfBuffer_.lookupTransform(working_frame_, orig_point_cloud_.header.frame_id,
@@ -137,8 +226,9 @@ YolactROS23D::update()
     orig_point_cloud_, local_pointcloud, transform);
   sensor_msgs::convertPointCloud2ToPointCloud(local_pointcloud, cloud_pc);
 
-  RCLCPP_INFO(this->get_logger(), "Update!\n");
-  RCLCPP_INFO(this->get_logger(), "person --> %d\n", eroding_factors_.at("person"));
+  calculate_boxes(local_pointcloud, cloud_pc, &output_bboxes);
+
+  RCLCPP_INFO(this->get_logger(), "UPDATE!\n");
 }
 
 CallbackReturnT
@@ -155,8 +245,8 @@ YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
   this->get_parameter("working_frame", working_frame_);
 
   // this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
-  // this->get_parameter("minimum_probability", minimum_probability_);
 
+  this->get_parameter("minimum_probability", minimum_probability_);
   this->get_parameter("interested_classes", interested_classes_);
 
   if (setErodingFactors()) {
