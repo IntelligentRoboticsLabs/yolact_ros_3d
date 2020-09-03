@@ -135,10 +135,11 @@ YolactROS23D::getMask(yolact_ros2_msgs::msg::Detection det, cv::Mat * output_mas
   *output_mask = cv::Mat(det.mask.height, det.mask.width, CV_8U);
   for (int x = 0; x < det.mask.width; x++) {
     for (int y = 0; y < det.mask.height; y++) {
-      if (pixelBelongsToBbox(det.mask, x, y))
+      if (pixelBelongsToBbox(det.mask, x, y)) {
         output_mask->at<unsigned char>(y, x) = 255;
-      else
+      } else {
         output_mask->at<unsigned char>(y, x) = 0;
+      }
     }
   }
 }
@@ -191,7 +192,7 @@ YolactROS23D::calculate_boxes(
     erodeMask(det.class_name, mask, &eroded_mask);
 
     cv::imshow("Original Mask", mask);
-		cv::waitKey(1);
+    cv::waitKey(1);
     cv::imshow("Eroded Mask", eroded_mask);
     cv::waitKey(1);
   }
