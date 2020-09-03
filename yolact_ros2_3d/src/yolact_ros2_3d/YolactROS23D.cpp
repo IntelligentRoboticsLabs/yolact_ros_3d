@@ -18,6 +18,7 @@
 #include "yolact_ros2_3d/YolactROS23D.hpp"
 #include <tf2/transform_datatypes.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <stdlib.h>
 #include <sensor_msgs/point_cloud_conversion.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
 #include <memory>
@@ -44,7 +45,9 @@ YolactROS23D::YolactROS23D()
 
   // this->declare_parameter("maximum_detection_threshold", 0.3f);
   // this->declare_parameter("minimum_probability", 0.3f);
-  // this->declare_parameter("interested_classes");
+
+  this->declare_parameter("interested_classes");
+  this->declare_parameter("eroding_factors");
 
   this->configure();
 
@@ -70,6 +73,37 @@ YolactROS23D::yolactCb(const yolact_ros2_msgs::msg::Detections::SharedPtr msg)
   RCLCPP_INFO(this->get_logger(), "Received!\n");
   original_detections_ = msg->detections;
   last_detection_ts_ = clock_.now();
+}
+
+bool
+YolactROS23D::setErodingFactors()
+{
+
+  std::vector<std::string> eroding_factors_v_;
+  int eroding_factor;
+
+  this->get_parameter("eroding_factors", eroding_factors_v_);
+
+  if (eroding_factors_v_.size() != interested_classes_.size()) {
+    RCLCPP_ERROR(this->get_logger(), "Eroding Factors Parameter is Invalid!\n");
+    return false;
+  }
+
+  for (unsigned int i = 0; i < interested_classes_.size(); i++) {
+    eroding_factor =  atoi(eroding_factors_v_[i].c_str());
+    if(eroding_factor < 0 || eroding_factor > 100) {
+      RCLCPP_ERROR(this->get_logger(), "Eroding Factors Parameter is Invalid!\n");
+      return false;
+    }
+
+    auto element = std::pair<std::string, int>(
+      interested_classes_[i],eroding_factor);
+
+    eroding_factors_.insert(element);
+  }
+  RCLCPP_INFO(this->get_logger(), "person --> %d\n", eroding_factors_.at("person"));
+
+  return true;
 }
 
 void
@@ -102,6 +136,7 @@ YolactROS23D::update()
   sensor_msgs::convertPointCloud2ToPointCloud(local_pointcloud, cloud_pc);
 
   RCLCPP_INFO(this->get_logger(), "Update!\n");
+  RCLCPP_INFO(this->get_logger(), "person --> %d\n", eroding_factors_.at("person"));
 }
 
 CallbackReturnT
@@ -119,9 +154,14 @@ YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
 
   // this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
   // this->get_parameter("minimum_probability", minimum_probability_);
-  // this->get_parameter("interested_classes", interested_classes_);
 
-  return CallbackReturnT::SUCCESS;
+  this->get_parameter("interested_classes", interested_classes_);
+
+  if (setErodingFactors()) {
+    return CallbackReturnT::SUCCESS;
+  }
+
+  return CallbackReturnT::FAILURE;
 }
 
 CallbackReturnT

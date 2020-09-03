@@ -7,3 +7,4 @@ yolact_ros2_3d_node:
     maximum_detection_threshold: 0.2
     minimum_probability: 0.4
     interested_classes: ["person", "book", "bottle"]
+    eroding_factors: ["30", "10", "10"]

@@ -28,6 +28,7 @@
 #include <sensor_msgs/msg/point_cloud.hpp>
 #include <string>
 #include <vector>
+#include <map>
 #include "yolact_ros2_msgs/msg/detections.hpp"
 #include "yolact_ros2_msgs/msg/detection.hpp"
 #include "gb_visual_detection_3d_msgs/msg/bounding_boxes3d.hpp"
@@ -55,6 +56,8 @@ private:
   void pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
   void yolactCb(const yolact_ros2_msgs::msg::Detections::SharedPtr msg);
 
+  bool setErodingFactors();
+
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
   rclcpp::Subscription<yolact_ros2_msgs::msg::Detections>::SharedPtr yolact_ros_sub_;
 
@@ -65,6 +68,8 @@ private:
   sensor_msgs::msg::PointCloud2 orig_point_cloud_;
   std::string point_cloud_topic_, working_frame_, input_bbx_topic_;
   std::vector<yolact_ros2_msgs::msg::Detection> original_detections_;
+  std::vector<std::string> interested_classes_ = {};
+  std::map<std::string, int> eroding_factors_;
   bool pc_received_;
 };
 
