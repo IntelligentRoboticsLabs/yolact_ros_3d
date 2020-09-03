@@ -92,7 +92,7 @@ YolactROS23D::setErodingFactors()
   }
 
   for (unsigned int i = 0; i < interested_classes_.size(); i++) {
-    eroding_factor =  atoi(eroding_factors_v_[i].c_str());
+    eroding_factor = atoi(eroding_factors_v_[i].c_str());
     if (eroding_factor < 0 || eroding_factor > 100) {
       RCLCPP_ERROR(this->get_logger(), "Eroding Factors Parameter is Invalid!\n");
       return false;
