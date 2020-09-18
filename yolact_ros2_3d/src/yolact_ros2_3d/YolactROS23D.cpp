@@ -167,14 +167,14 @@ YolactROS23D::erodeMask(std::string class_name, cv::Mat * mask, cv::Mat * eroded
 
   eroding_factor = eroding_factors_[class_name];
   kernel_area = MAXKERELSIZE - eroding_factor * (MAXKERELSIZE) / 100;
-  if (kernel_area < MINKERELSIZE)
+  if (kernel_area < MINKERELSIZE) {
     kernel_area = MINKERELSIZE;
-
+  }
   *eroded_mask = cv::Mat(mask->size(), CV_8U, cv::Scalar(0));
   cv::Mat temp(mask->size(), CV_8U);
   cv::Mat element = cv::getStructuringElement(cv::MORPH_CROSS,
-    cv::Size(static_cast<int>(sqrt(kernel_area)),
-    static_cast<int>(sqrt(kernel_area))));
+      cv::Size(static_cast<int>(sqrt(kernel_area)),
+      static_cast<int>(sqrt(kernel_area))));
 
   do {
     cv::morphologyEx(*mask, temp, cv::MORPH_OPEN, element);
@@ -206,8 +206,9 @@ YolactROS23D::calculateBbox(
   is_first = true;
   for (int i = 0; i < det.mask.width; i++) {
     for (int j = 0; j < det.mask.height; j++) {
-      if (static_cast<int>(eroded_mask.at<unsigned char>(j, i)) != 255)
+      if (static_cast<int>(eroded_mask.at<unsigned char>(j, i)) != 255){
         continue;
+      }
       eroded_mask_isdense = true;
       pc_index = ((j + det.box.y1) * cloud_pc2.width) + (i + det.box.x1);
 
@@ -272,8 +273,9 @@ YolactROS23D::calculate_boxes(
       cv::waitKey(1);
     }
 
-    if (calculateBbox(cloud_pc2, cloud_pc, det, eroded_mask, &bbox))
+    if (calculateBbox(cloud_pc2, cloud_pc, det, eroded_mask, &bbox)) {
       boxes->bounding_boxes.push_back(bbox);
+    }
   }
 }
 
@@ -308,18 +310,12 @@ YolactROS23D::publishMarkers(gb_visual_detection_3d_msgs::msg::BoundingBoxes3d b
     bbx_marker.color.a = 0.4;
     bbx_marker.lifetime = rclcpp::Duration(1.0);
     bbx_marker.text = bb.object_name;
-    /*
-    if(std::isnan(bbx_marker.scale.x) || std::isnan(bbx_marker.scale.y) ||
-      std::isnan(bbx_marker.scale.z))
-    {
-      continue;
-    }
-    */
     msg.markers.push_back(bbx_marker);
   }
 
-  if (markers_pub_->is_activated())
+  if (markers_pub_->is_activated()) {
     markers_pub_->publish(msg);
+  }
 }
 
 void
@@ -353,8 +349,9 @@ YolactROS23D::update()
   calculate_boxes(local_pointcloud, cloud_pc, &output_bboxes);
   publishMarkers(output_bboxes);
 
-  if (yolact3d_pub_->is_activated())
+  if (yolact3d_pub_->is_activated()) {
     yolact3d_pub_->publish(output_bboxes);
+  }
 }
 
 CallbackReturnT
