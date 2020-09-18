@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/* Author: Francisco Martín fmrico@gmail.com */
 /* Author: Fernando González fergonzaramos@yahoo.es */
+/* Author: Francisco Martín fmrico@gmail.com */
 
 #include "yolact_ros2_3d/YolactROS23D.hpp"
 #include <tf2/transform_datatypes.h>
@@ -29,6 +29,8 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <limits>
+#include <algorithm>
 
 #define MAXKERELSIZE 2500
 #define MINKERELSIZE 9
@@ -206,7 +208,7 @@ YolactROS23D::calculateBbox(
   is_first = true;
   for (int i = 0; i < det.mask.width; i++) {
     for (int j = 0; j < det.mask.height; j++) {
-      if (static_cast<int>(eroded_mask.at<unsigned char>(j, i)) != 255){
+      if (static_cast<int>(eroded_mask.at<unsigned char>(j, i)) != 255) {
         continue;
       }
       eroded_mask_isdense = true;
