@@ -29,6 +29,8 @@ find_package(cv_bridge REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3)
 
@@ -43,6 +45,8 @@ set(dependencies
   tf2
   tf2_ros
   tf2_sensor_msgs
+  geometry_msgs
+  visualization_msgs
 )
 
 include_directories(

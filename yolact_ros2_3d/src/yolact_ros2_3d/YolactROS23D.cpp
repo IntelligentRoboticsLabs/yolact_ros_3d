@@ -22,10 +22,16 @@
 #include <math.h>
 #include <sensor_msgs/point_cloud_conversion.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
+#include <geometry_msgs/msg/point32.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 #include <memory>
 #include <string>
 #include <vector>
 #include <utility>
+
+#define MAXKERELSIZE 2500
+#define MINKERELSIZE 9
 
 using std::placeholders::_1;
 using CallbackReturnT =
@@ -41,17 +47,14 @@ YolactROS23D::YolactROS23D()
   // Init Params
 
   this->declare_parameter("yolact_ros_topic", "/yolact_ros2/detections");
-
-  // this->declare_parameter("output_bbx3d_topic", "/darknet_ros_3d/bounding_boxes");
-
+  this->declare_parameter("output_bbx3d_topic", "/darknet_ros_3d/bounding_boxes");
   this->declare_parameter("point_cloud_topic", "/camera/depth_registered/points");
   this->declare_parameter("working_frame", "camera_link");
-
-  // this->declare_parameter("maximum_detection_threshold", 0.3f);
-
+  this->declare_parameter("maximum_detection_threshold", 0.3);
   this->declare_parameter("minimum_probability", 0.3);
   this->declare_parameter("interested_classes");
   this->declare_parameter("eroding_factors");
+  this->declare_parameter("debug", false);
 
   this->configure();
 
@@ -60,6 +63,12 @@ YolactROS23D::YolactROS23D()
 
   yolact_ros_sub_ = this->create_subscription<yolact_ros2_msgs::msg::Detections>(
     input_bbx_topic_, 1, std::bind(&YolactROS23D::yolactCb, this, std::placeholders::_1));
+
+  yolact3d_pub_ = this->create_publisher<gb_visual_detection_3d_msgs::msg::BoundingBoxes3d>(
+    output_bbx3d_topic_, 100);
+
+  markers_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+    "/yolact_ros2_3d/markers", 1);
 
   this->activate();
 }
@@ -89,13 +98,12 @@ YolactROS23D::setErodingFactors()
 
     eroding_factors_.insert(element);
   }
-  RCLCPP_INFO(this->get_logger(), "person --> %d\n", eroding_factors_.at("person"));
 
   return true;
 }
 
 bool
-YolactROS23D::pixelBelongsToBbox(yolact_ros2_msgs::msg::Mask mask, size_t x, size_t y)
+YolactROS23D::pixelBelongsToBbox(const yolact_ros2_msgs::msg::Mask & mask, size_t x, size_t y)
 {
   /*
    * Return if pixel (x, y), where 'x' is collumn and 'y' is row belongs to
@@ -145,7 +153,7 @@ YolactROS23D::getMask(yolact_ros2_msgs::msg::Detection det, cv::Mat * output_mas
 }
 
 void
-YolactROS23D::erodeMask(std::string class_name, cv::Mat mask, cv::Mat * eroded_mask)
+YolactROS23D::erodeMask(std::string class_name, cv::Mat * mask, cv::Mat * eroded_mask)
 {
   /*
    * Erode mask 'mask' applying eroded factor that corresponds to 'class_name'
@@ -153,22 +161,88 @@ YolactROS23D::erodeMask(std::string class_name, cv::Mat mask, cv::Mat * eroded_m
    */
 
   int eroding_factor, kernel_area;
+  bool done;
+  double max;
   cv::Mat kernel;
 
-  // Calculate the are of the Kernel:
-
   eroding_factor = eroding_factors_[class_name];
-  kernel_area = eroding_factor * (mask.rows * mask.cols) / 100;
+  kernel_area = MAXKERELSIZE - eroding_factor * (MAXKERELSIZE) / 100;
+  if (kernel_area < MINKERELSIZE)
+    kernel_area = MINKERELSIZE;
 
-  // Make the kernel:
-
-  kernel = cv::getStructuringElement(
-    cv::MORPH_RECT, cv::Size(static_cast<int>(sqrt(kernel_area)),
+  *eroded_mask = cv::Mat(mask->size(), CV_8U, cv::Scalar(0));
+  cv::Mat temp(mask->size(), CV_8U);
+  cv::Mat element = cv::getStructuringElement(cv::MORPH_CROSS,
+    cv::Size(static_cast<int>(sqrt(kernel_area)),
     static_cast<int>(sqrt(kernel_area))));
 
-  // Erode the mask:
+  do {
+    cv::morphologyEx(*mask, temp, cv::MORPH_OPEN, element);
+    cv::bitwise_not(temp, temp);
+    cv::bitwise_and(*mask, temp, temp);
+    cv::bitwise_or(*eroded_mask, temp, *eroded_mask);
+    cv::erode(*mask, *mask, element);
 
-  cv::erode(mask, *eroded_mask, kernel);
+    cv::minMaxLoc(*mask, 0, &max);
+    done = (max == 0);
+  } while (!done);
+}
+
+bool
+YolactROS23D::calculateBbox(
+  sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
+  yolact_ros2_msgs::msg::Detection det, cv::Mat eroded_mask,
+  gb_visual_detection_3d_msgs::msg::BoundingBox3d * bbox)
+{
+  int pc_index;
+  float maxx, minx, maxy, miny, maxz, minz;
+  geometry_msgs::msg::Point32 point, prev_point;
+  bool eroded_mask_isdense, is_first;
+
+  maxx = maxy = maxz = -std::numeric_limits<float>::max();
+  minx = miny = minz = std::numeric_limits<float>::max();
+
+  eroded_mask_isdense = false;
+  is_first = true;
+  for (int i = 0; i < det.mask.width; i++) {
+    for (int j = 0; j < det.mask.height; j++) {
+      if (static_cast<int>(eroded_mask.at<unsigned char>(j, i)) != 255)
+        continue;
+      eroded_mask_isdense = true;
+      pc_index = ((j + det.box.y1) * cloud_pc2.width) + (i + det.box.x1);
+
+      point = cloud_pc.points[pc_index];
+      if (std::isnan(point.x)) {
+        continue;
+      }
+
+      if (is_first) {
+        prev_point = cloud_pc.points[pc_index];
+        is_first = false;
+      }
+
+      if (fabs(point.x - prev_point.x) > maximum_detection_threshold_) {
+        continue;
+      }
+      maxx = std::max(point.x, maxx);
+      maxy = std::max(point.y, maxy);
+      maxz = std::max(point.z, maxz);
+      minx = std::min(point.x, minx);
+      miny = std::min(point.y, miny);
+      minz = std::min(point.z, minz);
+      prev_point = point;
+    }
+  }
+  bbox->object_name = det.class_name;
+  bbox->probability = det.score;
+  bbox->xmin = minx;
+  bbox->xmax = maxx;
+  bbox->ymin = miny;
+  bbox->ymax = maxy;
+  bbox->zmin = minz;
+  bbox->zmax = maxz;
+
+  return eroded_mask_isdense;
 }
 
 void
@@ -177,6 +251,8 @@ YolactROS23D::calculate_boxes(
   gb_visual_detection_3d_msgs::msg::BoundingBoxes3d * boxes)
 {
   cv::Mat mask, eroded_mask;
+  gb_visual_detection_3d_msgs::msg::BoundingBox3d bbox;
+
   boxes->header.stamp = cloud_pc2.header.stamp;
   boxes->header.frame_id = cloud_pc2.header.frame_id;
 
@@ -189,13 +265,61 @@ YolactROS23D::calculate_boxes(
     }
 
     getMask(det, &mask);
-    erodeMask(det.class_name, mask, &eroded_mask);
+    erodeMask(det.class_name, &mask, &eroded_mask);
 
-    cv::imshow("Original Mask", mask);
-    cv::waitKey(1);
-    cv::imshow("Eroded Mask", eroded_mask);
-    cv::waitKey(1);
+    if (debug_) {
+      cv::imshow("Skeleton", eroded_mask);
+      cv::waitKey(1);
+    }
+
+    if (calculateBbox(cloud_pc2, cloud_pc, det, eroded_mask, &bbox))
+      boxes->bounding_boxes.push_back(bbox);
   }
+}
+
+void
+YolactROS23D::publishMarkers(gb_visual_detection_3d_msgs::msg::BoundingBoxes3d boxes)
+{
+  visualization_msgs::msg::MarkerArray msg;
+  visualization_msgs::msg::Marker bbx_marker;
+
+  int counter_id = 0;
+  for (auto bb : boxes.bounding_boxes) {
+    bbx_marker.header.frame_id = working_frame_;
+    bbx_marker.header.stamp = boxes.header.stamp;
+    bbx_marker.ns = "yolact3d";
+    bbx_marker.id = counter_id++;
+    bbx_marker.type = visualization_msgs::msg::Marker::CUBE;
+    bbx_marker.action = visualization_msgs::msg::Marker::ADD;
+    bbx_marker.frame_locked = false;
+    bbx_marker.pose.position.x = (bb.xmax + bb.xmin) / 2.0;
+    bbx_marker.pose.position.y = (bb.ymax + bb.ymin) / 2.0;
+    bbx_marker.pose.position.z = (bb.zmax + bb.zmin) / 2.0;
+    bbx_marker.pose.orientation.x = 0.0;
+    bbx_marker.pose.orientation.y = 0.0;
+    bbx_marker.pose.orientation.z = 0.0;
+    bbx_marker.pose.orientation.w = 1.0;
+    bbx_marker.scale.x = (bb.xmax - bb.xmin);
+    bbx_marker.scale.y = (bb.ymax - bb.ymin);
+    bbx_marker.scale.z = (bb.zmax - bb.zmin);
+    bbx_marker.color.b = 0;
+    bbx_marker.color.g = bb.probability * 255.0;
+    bbx_marker.color.r = (1.0 - bb.probability) * 255.0;
+    bbx_marker.color.a = 0.4;
+    bbx_marker.lifetime = rclcpp::Duration(1.0);
+    bbx_marker.text = bb.object_name;
+    /*
+    if(std::isnan(bbx_marker.scale.x) || std::isnan(bbx_marker.scale.y) ||
+      std::isnan(bbx_marker.scale.z))
+    {
+      continue;
+    }
+    */
+    msg.markers.push_back(bbx_marker);
+  }
+
+  if (markers_pub_->is_activated())
+    markers_pub_->publish(msg);
 }
 
 void
@@ -227,8 +351,10 @@ YolactROS23D::update()
   sensor_msgs::convertPointCloud2ToPointCloud(local_pointcloud, cloud_pc);
 
   calculate_boxes(local_pointcloud, cloud_pc, &output_bboxes);
+  publishMarkers(output_bboxes);
 
-  RCLCPP_INFO(this->get_logger(), "UPDATE!\n");
+  if (yolact3d_pub_->is_activated())
+    yolact3d_pub_->publish(output_bboxes);
 }
 
 CallbackReturnT
@@ -238,16 +364,13 @@ YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
     this->get_name(), state.label().c_str());
 
   this->get_parameter("yolact_ros_topic", input_bbx_topic_);
-
-  // this->get_parameter("output_bbx3d_topic", output_bbx3d_topic_);
-
+  this->get_parameter("output_bbx3d_topic", output_bbx3d_topic_);
   this->get_parameter("point_cloud_topic", point_cloud_topic_);
   this->get_parameter("working_frame", working_frame_);
-
-  // this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
-
+  this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
   this->get_parameter("minimum_probability", minimum_probability_);
   this->get_parameter("interested_classes", interested_classes_);
+  this->get_parameter("debug", debug_);
 
   if (setErodingFactors()) {
     return CallbackReturnT::SUCCESS;
@@ -262,8 +385,8 @@ YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Activating from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  // darknet3d_pub_->on_activate();
-  // markers_pub_->on_activate();
+  yolact3d_pub_->on_activate();
+  markers_pub_->on_activate();
 
   return CallbackReturnT::SUCCESS;
 }
@@ -274,8 +397,8 @@ YolactROS23D::on_deactivate(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Deactivating from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  // darknet3d_pub_->on_deactivate();
-  // markers_pub_->on_deactivate();
+  yolact3d_pub_->on_deactivate();
+  markers_pub_->on_deactivate();
 
   return CallbackReturnT::SUCCESS;
 }
@@ -286,8 +409,8 @@ YolactROS23D::on_cleanup(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Cleanning Up from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  // darknet3d_pub_.reset();
-  // markers_pub_.reset();
+  yolact3d_pub_.reset();
+  markers_pub_.reset();
 
   return CallbackReturnT::SUCCESS;
 }
@@ -298,8 +421,8 @@ YolactROS23D::on_shutdown(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Shutting Down from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  // darknet3d_pub_.reset();
-  // markers_pub_.reset();
+  yolact3d_pub_.reset();
+  markers_pub_.reset();
 
   return CallbackReturnT::SUCCESS;
 }

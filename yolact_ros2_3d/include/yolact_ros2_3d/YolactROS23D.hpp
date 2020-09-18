@@ -30,12 +30,14 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/mat.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <string>
 #include <vector>
 #include <map>
 #include "yolact_ros2_msgs/msg/detections.hpp"
 #include "yolact_ros2_msgs/msg/detection.hpp"
 #include "gb_visual_detection_3d_msgs/msg/bounding_boxes3d.hpp"
+#include "gb_visual_detection_3d_msgs/msg/bounding_box3d.hpp"
 
 namespace yolact_ros2_3d
 {
@@ -65,25 +67,36 @@ private:
     sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
     gb_visual_detection_3d_msgs::msg::BoundingBoxes3d * boxes);
   void getMask(yolact_ros2_msgs::msg::Detection det, cv::Mat * output_mask);
-  void erodeMask(std::string class_name, cv::Mat mask, cv::Mat * eroded_mask);
+  void erodeMask(std::string class_name, cv::Mat * mask, cv::Mat * eroded_mask);
+  void publishMarkers(gb_visual_detection_3d_msgs::msg::BoundingBoxes3d boxes);
 
   bool setErodingFactors();
-  bool pixelBelongsToBbox(yolact_ros2_msgs::msg::Mask mask, size_t x, size_t y);
+  bool pixelBelongsToBbox(const yolact_ros2_msgs::msg::Mask & mask, size_t x, size_t y);
+  bool calculateBbox(
+    sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
+    yolact_ros2_msgs::msg::Detection det, cv::Mat eroded_mask,
+    gb_visual_detection_3d_msgs::msg::BoundingBox3d * bbox);
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
   rclcpp::Subscription<yolact_ros2_msgs::msg::Detections>::SharedPtr yolact_ros_sub_;
+
+  rclcpp_lifecycle::LifecyclePublisher
+  <gb_visual_detection_3d_msgs::msg::BoundingBoxes3d>::SharedPtr yolact3d_pub_;
+
+  rclcpp_lifecycle::LifecyclePublisher
+  <visualization_msgs::msg::MarkerArray>::SharedPtr markers_pub_;
 
   rclcpp::Clock clock_;
   tf2_ros::Buffer tfBuffer_;
   tf2_ros::TransformListener tfListener_;
   rclcpp::Time last_detection_ts_;
   sensor_msgs::msg::PointCloud2 orig_point_cloud_;
-  std::string point_cloud_topic_, working_frame_, input_bbx_topic_;
+  std::string point_cloud_topic_, working_frame_, input_bbx_topic_, output_bbx3d_topic_;
   std::vector<yolact_ros2_msgs::msg::Detection> original_detections_;
   std::vector<std::string> interested_classes_ = {};
   std::map<std::string, int> eroding_factors_;
-  double minimum_probability_;
-  bool pc_received_;
+  double minimum_probability_, maximum_detection_threshold_;
+  bool pc_received_, debug_;
 };
 
 }  // namespace yolact_ros2_3d

@@ -1,10 +1,11 @@
 yolact_ros2_3d_node:
   ros__parameters:
     yolact_ros_topic: /yolact_ros2/detections
-    output_bbx3d_topic: /darknet_ros_3d/bounding_boxes
+    output_bbx3d_topic: /yolact_ros2_3d/bounding_boxes_3d
     point_cloud_topic: /camera/pointcloud
     working_frame: camera_link
     maximum_detection_threshold: 0.2
-    minimum_probability: 0.3
-    interested_classes: ["person", "bottle"]
-    eroding_factors: ["5", "2"]
+    minimum_probability: 0.2
+    interested_classes: ["person", "chair", "tv", "bottle"]
+    eroding_factors: ["100", "90", "90", "90"]
+    debug: true
