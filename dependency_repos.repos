@@ -1,0 +1,13 @@
+repositories:
+    yolact_ros_msgs:
+        type: git
+        url: https://github.com/Eruvae/yolact_ros_msgs.git
+        version: ROS2
+    gb_visual_detection_3d_msgs:
+        type: git
+        url: https://github.com/IntelligentRoboticsLabs/gb_visual_detection_3d_msgs.git
+        version: eloquent
+    rosidl:
+        type: git
+        url: https://github.com/ros2/rosidl_defaults.git
+        version: eloquent
