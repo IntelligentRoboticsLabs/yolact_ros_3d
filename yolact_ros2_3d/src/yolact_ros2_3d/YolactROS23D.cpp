@@ -192,8 +192,9 @@ YolactROS23D::erodeMask(std::string class_name, cv::Mat * mask, cv::Mat * eroded
 
 bool
 YolactROS23D::calculateBbox(
-  sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
-  yolact_ros2_msgs::msg::Detection det, cv::Mat eroded_mask,
+  const sensor_msgs::msg::PointCloud2 & cloud_pc2,
+  const sensor_msgs::msg::PointCloud & cloud_pc,
+  const yolact_ros2_msgs::msg::Detection & det, const cv::Mat & eroded_mask,
   gb_visual_detection_3d_msgs::msg::BoundingBox3d * bbox)
 {
   int pc_index;
@@ -250,7 +251,8 @@ YolactROS23D::calculateBbox(
 
 void
 YolactROS23D::calculate_boxes(
-  sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
+  const sensor_msgs::msg::PointCloud2 & cloud_pc2,
+  const sensor_msgs::msg::PointCloud & cloud_pc,
   gb_visual_detection_3d_msgs::msg::BoundingBoxes3d * boxes)
 {
   cv::Mat mask, eroded_mask;
@@ -282,7 +284,7 @@ YolactROS23D::calculate_boxes(
 }
 
 void
-YolactROS23D::publishMarkers(gb_visual_detection_3d_msgs::msg::BoundingBoxes3d boxes)
+YolactROS23D::publishMarkers(const gb_visual_detection_3d_msgs::msg::BoundingBoxes3d & boxes)
 {
   visualization_msgs::msg::MarkerArray msg;
   visualization_msgs::msg::Marker bbx_marker;

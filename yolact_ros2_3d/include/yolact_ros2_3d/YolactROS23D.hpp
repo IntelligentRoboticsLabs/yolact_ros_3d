@@ -64,17 +64,19 @@ private:
   void pointCloudCb(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
   void yolactCb(const yolact_ros2_msgs::msg::Detections::SharedPtr msg);
   void calculate_boxes(
-    sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
+    const sensor_msgs::msg::PointCloud2 & cloud_pc2,
+    const sensor_msgs::msg::PointCloud & cloud_pc,
     gb_visual_detection_3d_msgs::msg::BoundingBoxes3d * boxes);
   void getMask(yolact_ros2_msgs::msg::Detection det, cv::Mat * output_mask);
   void erodeMask(std::string class_name, cv::Mat * mask, cv::Mat * eroded_mask);
-  void publishMarkers(gb_visual_detection_3d_msgs::msg::BoundingBoxes3d boxes);
+  void publishMarkers(const gb_visual_detection_3d_msgs::msg::BoundingBoxes3d & boxes);
 
   bool setErodingFactors();
   bool pixelBelongsToBbox(const yolact_ros2_msgs::msg::Mask & mask, size_t x, size_t y);
   bool calculateBbox(
-    sensor_msgs::msg::PointCloud2 cloud_pc2, sensor_msgs::msg::PointCloud cloud_pc,
-    yolact_ros2_msgs::msg::Detection det, cv::Mat eroded_mask,
+    const sensor_msgs::msg::PointCloud2 & cloud_pc2,
+    const sensor_msgs::msg::PointCloud & cloud_pc,
+    const yolact_ros2_msgs::msg::Detection & det, const cv::Mat & eroded_mask,
     gb_visual_detection_3d_msgs::msg::BoundingBox3d * bbox);
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
