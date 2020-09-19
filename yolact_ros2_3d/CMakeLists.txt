@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(yolact_ros2_3d)
 
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
+
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
@@ -20,28 +22,53 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(lifecycle_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(gb_visual_detection_3d_msgs REQUIRED)
 find_package(yolact_ros2_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(eigen3_cmake_module REQUIRED)
+find_package(Eigen3)
 
 set(dependencies
   rclcpp
   rclcpp_lifecycle
   lifecycle_msgs
+  sensor_msgs
   gb_visual_detection_3d_msgs
   yolact_ros2_msgs
   cv_bridge
+  tf2
+  tf2_ros
+  tf2_sensor_msgs
+  geometry_msgs
+  visualization_msgs
 )
 
 include_directories(
   include/
   ${OpenCV_INCLUDE_DIRS}
+  ${Eigen3_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME} SHARED
   src/yolact_ros2_3d/YolactROS23D.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
+
+add_executable(yolact_ros2_3d_node src/yolact3d_node.cpp)
+ament_target_dependencies(yolact_ros2_3d_node ${dependencies})
+target_link_libraries(yolact_ros2_3d_node ${PROJECT_NAME})
+
+target_include_directories(yolact_ros2_3d_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${Eigen3_INCLUDE_DIRS}
+)
 
 #########
 #INSTALL#
@@ -50,10 +77,11 @@ ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 install(DIRECTORY include/
   DESTINATION include/
 )
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME}/)
 
 install(TARGETS
   ${PROJECT_NAME}
-  #darknet3d_node
+  yolact_ros2_3d_node
   EXPORT export_${PROJECT_NAME}
   DESTINATION lib/${PROJECT_NAME}
   LIBRARY DESTINATION lib
