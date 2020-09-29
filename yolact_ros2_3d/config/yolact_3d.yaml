@@ -5,7 +5,7 @@ yolact_ros2_3d_node:
     point_cloud_topic: /camera/pointcloud
     working_frame: camera_link
     maximum_detection_threshold: 0.2
-    minimum_probability: 0.2
-    interested_classes: ["person", "chair", "tv", "bottle"]
-    eroding_factors: ["100", "90", "90", "90"]
+    minimum_probability: 0.4
+    interested_classes: ["person"]
+    eroding_factors: ["70"]
     debug: true

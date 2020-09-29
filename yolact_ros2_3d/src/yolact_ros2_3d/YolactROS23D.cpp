@@ -32,8 +32,8 @@
 #include <limits>
 #include <algorithm>
 
-#define MAXKERELSIZE 2500
-#define MINKERELSIZE 9
+#define MAXKERNELSIZE 2500
+#define MINKERNELSIZE 9
 
 using std::placeholders::_1;
 using CallbackReturnT =
@@ -168,9 +168,9 @@ YolactROS23D::erodeMask(std::string class_name, cv::Mat * mask, cv::Mat * eroded
   cv::Mat kernel;
 
   eroding_factor = eroding_factors_[class_name];
-  kernel_area = MAXKERELSIZE - eroding_factor * (MAXKERELSIZE) / 100;
-  if (kernel_area < MINKERELSIZE) {
-    kernel_area = MINKERELSIZE;
+  kernel_area = MAXKERNELSIZE - eroding_factor * (MAXKERNELSIZE) / 100;
+  if (kernel_area < MINKERNELSIZE) {
+    kernel_area = MINKERNELSIZE;
   }
   *eroded_mask = cv::Mat(mask->size(), CV_8U, cv::Scalar(0));
   cv::Mat temp(mask->size(), CV_8U);
