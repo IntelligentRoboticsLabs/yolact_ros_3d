@@ -6,6 +6,7 @@ yolact_ros2_3d_node:
     working_frame: camera_link
     maximum_detection_threshold: 0.2
     minimum_probability: 0.4
-    interested_classes: ["person"]
-    eroding_factors: ["70"]
+    interested_classes: ["person", "dog", "tv", "keyboard"]
+    eroding_factors: ["2", "1", "3", "1"]
+    thinning_factors: ["90", "20", "80", "80"]
     debug: true
