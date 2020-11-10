@@ -538,6 +538,11 @@ YolactROS23D::initOctomapsParams()
   double margin_error, voxel_res;
   bool ok;
 
+  dynamic_classes.clear();
+  static_classes.clear();
+  hit_probabilities.clear();
+  miss_probabilities.clear();
+
   this->get_parameter("dynamic_classes", dynamic_classes);
   this->get_parameter("static_classes", static_classes);
   this->get_parameter("hit_probability", hit_probabilities);

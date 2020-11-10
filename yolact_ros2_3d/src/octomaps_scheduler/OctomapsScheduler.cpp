@@ -72,7 +72,6 @@ OctomapsScheduler::setObjects(
     i = 0;
     for (auto it = statics.begin(); it != statics.end(); it++) {
       setObject(*it, std::stof(hit_probs[i]) / 100.0, std::stof(miss_probs[i]) / 100.0);
-      // setObject(*it, 1.0, 1.0);
       i++;
     }
   } else {
