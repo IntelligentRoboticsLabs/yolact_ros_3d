@@ -2,10 +2,11 @@ yolact_ros2_3d_node:
   ros__parameters:
     yolact_ros_topic: /yolact_ros2/detections
     output_bbx3d_topic: /yolact_ros2_3d/bounding_boxes_3d
-    point_cloud_topic: /camera/pointcloud
+    point_cloud_topic: /intel_realsense_r200_depth/points
+    image_topic: /intel_realsense_r200_depth/image_raw
     working_frame: camera_link
     maximum_detection_threshold: 0.2
-    minimum_probability: 0.2
+    minimum_probability: 0.1
     interested_classes: ["person", "chair", "tv", "bottle"]
-    eroding_factors: ["100", "90", "90", "90"]
+    class_colors: ["00FF00", "FF0000", "0000FF", "FFFF00"]
     debug: true

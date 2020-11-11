@@ -31,6 +31,10 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(octomap REQUIRED)
+find_package(octomap_msgs REQUIRED)
+find_package(pcl_ros REQUIRED)
+find_package(perception_pcl REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3)
 
@@ -47,6 +51,10 @@ set(dependencies
   tf2_sensor_msgs
   geometry_msgs
   visualization_msgs
+  octomap
+  octomap_msgs
+  pcl_ros
+  perception_pcl
 )
 
 include_directories(
@@ -62,7 +70,7 @@ ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 
 add_executable(yolact_ros2_3d_node src/yolact3d_node.cpp)
 ament_target_dependencies(yolact_ros2_3d_node ${dependencies})
-target_link_libraries(yolact_ros2_3d_node ${PROJECT_NAME})
+target_link_libraries(yolact_ros2_3d_node ${PROJECT_NAME} octomap)
 
 target_include_directories(yolact_ros2_3d_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
