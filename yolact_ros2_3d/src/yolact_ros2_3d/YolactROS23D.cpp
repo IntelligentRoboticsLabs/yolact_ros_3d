@@ -94,9 +94,9 @@ YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
   yolact_ros_sub_ = create_subscription<yolact_ros2_msgs::msg::Detections>(
     input_bbx_topic_, 1, std::bind(&YolactROS23D::yolact_callback, this, std::placeholders::_1));
 
-  octomaps_pub_ = create_publisher<octomap_msgs::msg::Octomap>("/yolact_ros2_3d/output_octomaps", 100);
+  octomaps_pub_ = create_publisher<octomap_msgs::msg::Octomap>("~/output_octomaps", 100);
   octomaps_pub_->on_activate();
-  detection_cloud_pub = create_publisher<sensor_msgs::msg::PointCloud2>("/yolact_ros2_3d/detection_cloud", 100);
+  detection_cloud_pub = create_publisher<sensor_msgs::msg::PointCloud2>("~/detection_cloud", 100);
   detection_cloud_pub->on_activate();
 
   timer_ = create_wall_timer(
@@ -179,10 +179,12 @@ YolactROS23D::timer_callback()
 
     auto detection_cloud = get_detection_cloud(detection, cloud);
     
-    pcl::KdTreeFLANN<pcl::PointXYZRGB> kdtree;
-    kdtree.setInputCloud(detection_cloud);
-
-    get_octree_from_detection(kdtree, detection, cloud, detection_octree);
+    if (!detection_cloud->empty()) {
+      pcl::KdTreeFLANN<pcl::PointXYZRGB> kdtree;
+      kdtree.setInputCloud(detection_cloud);
+  
+      get_octree_from_detection(kdtree, detection, cloud, detection_octree);
+    }
   }
 
   if (detection_octree!= nullptr) {
@@ -202,12 +204,6 @@ YolactROS23D::timer_callback()
 bool
 YolactROS23D::pixel_in_detection(const yolact_ros2_msgs::msg::Mask & mask, size_t x, size_t y)
 {
-  /*
-   * Return if pixel (x, y), where 'x' is collumn and 'y' is row belongs to
-   * the bounding box whose mask is 'mask' (encoded as a bitset
-   * -see yolact_ros documentation-)
-   */
-
   size_t index, byte_ind, bit_ind;
 
   index = y * mask.width + x;
@@ -299,7 +295,9 @@ YolactROS23D::expand_octree(
   colpoint.y = point.y();
   colpoint.z = point.z();
   
-  if (kdtree.radiusSearch(colpoint, voxel_res_, k_indices, k_sqr_distances, 1) > 0) {
+  if (std::isnan(colpoint.x) || std::isinf(colpoint.x)) return;
+  
+  if (kdtree.radiusSearch(colpoint, voxel_res_ / 2.0, k_indices, k_sqr_distances, 1) > 0) {
     octree->updateNode(colpoint.x, colpoint.y, colpoint.z, false);
     octree->setNodeValue(colpoint.x, colpoint.y, colpoint.z, 1.0, true);
     octree->setNodeColor(colpoint.x, colpoint.y, colpoint.z, colpoint.r, colpoint.g, colpoint.b);
@@ -309,7 +307,7 @@ YolactROS23D::expand_octree(
         for (double dz = -voxel_res_; dz <= (voxel_res_ + 0.001); dz += voxel_res_) {
           
           octomap::point3d p3d(point.x() + dx, point.y() + dy, point.z() + dz);
-          if (octree->search(p3d) == nullptr) {
+          if (octree->search(p3d) == nullptr) {            
             expand_octree(p3d, kdtree, octree);
           }
         }
@@ -345,7 +343,7 @@ YolactROS23D::publish_octree(std::shared_ptr<octomap::ColorOcTree> octree,
   octomap_msg.header.frame_id = pointcloud->header.frame_id;
   octomap_msg.header.stamp = pointcloud->header.stamp;
   octomap_msg.binary = false;
-  octomap_msg.resolution = 0.1;
+  octomap_msg.resolution = voxel_res_;
 
   size_t octomapSize = octree->size();
   if (octomapSize < 1){
@@ -354,9 +352,7 @@ YolactROS23D::publish_octree(std::shared_ptr<octomap::ColorOcTree> octree,
   }
 
   if (octomap_msgs::fullMapToMsg(*octree, octomap_msg)){
-    std::cerr << "Publishing size = " << octomap_msg.data.size() << std::endl;
     octomaps_pub_->publish(octomap_msg);
-    RCLCPP_INFO(get_logger(), "publishing a octomap of size [%u]", octomapSize);
   }else{
     RCLCPP_ERROR(get_logger(),"Error serializing OctoMap");
   }
