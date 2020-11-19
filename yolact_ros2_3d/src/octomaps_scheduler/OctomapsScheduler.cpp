@@ -24,6 +24,7 @@
 #include <memory>
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 #define THRESHOLDMAX 0.97
 
@@ -225,7 +226,6 @@ OctomapsScheduler::setOctomap(
   for (int col = 0; col < mask.cols; col++) {
     for (int row = 0; row < mask.rows; row++) {
       if (static_cast<int>(mask.at<unsigned char>(row, col)) == 255) {
-
         // Get Point from point cloud:
 
         pc_index = ((row + row_min) * pc_width) + (col + col_min);

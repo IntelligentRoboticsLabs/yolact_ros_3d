@@ -41,7 +41,7 @@ def generate_launch_description():
         output='screen',
         parameters=[config_file1_path, config_file2_path],
         remappings=[
-            ("/yolact_ros2_3d/octomaps/dynamics/person", "/dummy_octomap")
+            ('/yolact_ros2_3d/octomaps/dynamics/person', '/dummy_octomap')
         ]
     )
 

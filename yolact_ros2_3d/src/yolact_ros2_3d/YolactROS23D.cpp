@@ -31,6 +31,7 @@
 #include <utility>
 #include <limits>
 #include <algorithm>
+#include <map>
 
 #define MAXKERNELSIZE 2500
 #define MINKERNELSIZE 9
@@ -473,7 +474,6 @@ YolactROS23D::publishOctomaps()
     if (octomaps_sch_.getOctomap(obj.name, &map, &size)) {
       RCLCPP_WARN(get_logger(), "Tamaño: %d\n", (int)size);
       if (size > 1) {
-
         // Publish the octomap:
 
         RCLCPP_WARN(get_logger(), "Publicando octomap de: %s\n", obj.name.c_str());
