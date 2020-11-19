@@ -53,8 +53,8 @@ class OctomapsScheduler
 {
 public:
   OctomapsScheduler();
-  OctomapsScheduler(double margin_error, double voxel_res,
-    const std::string & frame_id);
+  OctomapsScheduler(
+    double margin_error, double voxel_res, const std::string & frame_id);
 
   void setOctomap(
     const std::string & class_name, const cv::Mat & mask,

@@ -209,8 +209,10 @@ YolactROS23D::thinMask(const std::string & class_name, cv::Mat * mask, cv::Mat *
   }
   *thinned_mask = cv::Mat(mask->size(), CV_8U, cv::Scalar(0));
   cv::Mat temp(mask->size(), CV_8U);
-  kernel = cv::getStructuringElement(cv::MORPH_CROSS,
-      cv::Size(static_cast<int>(sqrt(kernel_area)),
+  kernel = cv::getStructuringElement(
+    cv::MORPH_CROSS,
+    cv::Size(
+      static_cast<int>(sqrt(kernel_area)),
       static_cast<int>(sqrt(kernel_area))));
 
   do {
@@ -240,8 +242,10 @@ YolactROS23D::erodeMask(
   eroding_factor = eroding_factors_[class_name];
   kernel_area = eroding_factor * (mask.rows * mask.cols) / 100;
 
-  kernel = cv::getStructuringElement(cv::MORPH_RECT,
-      cv::Size(static_cast<int>(sqrt(kernel_area)),
+  kernel = cv::getStructuringElement(
+    cv::MORPH_RECT,
+    cv::Size(
+      static_cast<int>(sqrt(kernel_area)),
       static_cast<int>(sqrt(kernel_area))));
 
   cv::erode(mask, *eroded_mask, kernel);
@@ -256,10 +260,12 @@ YolactROS23D::getOctomapPointCloud(
   geometry_msgs::msg::TransformStamped transform;
 
   try {
-    transform = tfBuffer_.lookupTransform(octomaps_frame_, orig_pc2.header.frame_id,
-        orig_pc2.header.stamp, tf2::durationFromSec(2.0));
+    transform = tfBuffer_.lookupTransform(
+      octomaps_frame_, orig_pc2.header.frame_id,
+      orig_pc2.header.stamp, tf2::durationFromSec(2.0));
   } catch (tf2::TransformException & ex) {
-    RCLCPP_ERROR(this->get_logger(), "Transform error of sensor data: %s, %s\n",
+    RCLCPP_ERROR(
+      this->get_logger(), "Transform error of sensor data: %s, %s\n",
       ex.what(), "quitting callback");
     return false;
   }
@@ -355,8 +361,9 @@ YolactROS23D::calculate_boxes(
 
   for (auto det : original_detections_) {
     if ((det.score < minimum_probability_) ||
-      (std::find(interested_classes_.begin(), interested_classes_.end(),
-      det.class_name) == interested_classes_.end()))
+      (std::find(
+        interested_classes_.begin(), interested_classes_.end(),
+        det.class_name) == interested_classes_.end()))
     {
       continue;
     }
@@ -381,7 +388,8 @@ YolactROS23D::calculate_boxes(
 
     if (octomaps_sch_.getObject(det.class_name, NULL)) {
       RCLCPP_INFO(get_logger(), "set octomap de [%s]\n", det.class_name.c_str());
-      octomaps_sch_.setOctomap(det.class_name, eroded_mask, octomap_pc,
+      octomaps_sch_.setOctomap(
+        det.class_name, eroded_mask, octomap_pc,
         det.box.x1, det.box.y1, octomap_pc2.width);
     }
   }
@@ -459,7 +467,7 @@ YolactROS23D::publishOctomaps()
   octomap_msgs::msg::Octomap map;
   size_t size;
   rclcpp::Publisher
-    <octomap_msgs::msg::Octomap>::SharedPtr publisher;
+  <octomap_msgs::msg::Octomap>::SharedPtr publisher;
 
   for (const auto & obj : octomaps_sch_.getObjects()) {
     if (octomaps_sch_.getOctomap(obj.name, &map, &size)) {
@@ -493,10 +501,12 @@ YolactROS23D::update()
   gb_visual_detection_3d_msgs::msg::BoundingBoxes3d output_bboxes;
 
   try {
-    transform = tfBuffer_.lookupTransform(working_frame_, orig_point_cloud_.header.frame_id,
-        orig_point_cloud_.header.stamp, tf2::durationFromSec(2.0));
+    transform = tfBuffer_.lookupTransform(
+      working_frame_, orig_point_cloud_.header.frame_id,
+      orig_point_cloud_.header.stamp, tf2::durationFromSec(2.0));
   } catch (tf2::TransformException & ex) {
-    RCLCPP_ERROR(this->get_logger(), "Transform error of sensor data: %s, %s\n",
+    RCLCPP_ERROR(
+      this->get_logger(), "Transform error of sensor data: %s, %s\n",
       ex.what(), "quitting callback");
     return;
   }
@@ -554,10 +564,12 @@ YolactROS23D::initOctomapsParams()
   octomaps_sch_ = octomaps_scheduler::OctomapsScheduler(
     margin_error, voxel_res, octomaps_frame_);
 
-  ok = octomaps_sch_.setObjects(dynamic_classes, static_classes,
+  ok = octomaps_sch_.setObjects(
+    dynamic_classes, static_classes,
     hit_probabilities, miss_probabilities, debug);
   if (ok) {
-    RCLCPP_INFO(this->get_logger(), "%s\n", debug.c_str());
+    RCLCPP_INFO(
+      this->get_logger(), "%s\n", debug.c_str());
     setOctomapsPublishers(dynamic_classes, static_classes);
   } else {
     RCLCPP_ERROR(this->get_logger(), "%s\n", debug.c_str());
@@ -579,12 +591,13 @@ YolactROS23D::setOctomapsPublishers(
     std::replace(topic_name.begin(), topic_name.end(), ' ', '_');
 
     rclcpp_lifecycle::LifecyclePublisher
-      <octomap_msgs::msg::Octomap>::SharedPtr pub;
+    <octomap_msgs::msg::Octomap>::SharedPtr pub;
 
     pub = create_publisher<octomap_msgs::msg::Octomap>(
       topic_name, rclcpp::SystemDefaultsQoS());
 
-    octomaps_pubs_.insert(std::pair<std::string,
+    octomaps_pubs_.insert(
+      std::pair<std::string,
       rclcpp_lifecycle::LifecyclePublisher
       <octomap_msgs::msg::Octomap>::SharedPtr>(
         *it, pub));
@@ -597,12 +610,13 @@ YolactROS23D::setOctomapsPublishers(
     std::replace(topic_name.begin(), topic_name.end(), ' ', '_');
 
     rclcpp_lifecycle::LifecyclePublisher
-      <octomap_msgs::msg::Octomap>::SharedPtr pub;
+    <octomap_msgs::msg::Octomap>::SharedPtr pub;
 
     pub = this->create_publisher<octomap_msgs::msg::Octomap>(
       topic_name, rclcpp::SystemDefaultsQoS());
 
-    octomaps_pubs_.insert(std::pair<std::string,
+    octomaps_pubs_.insert(
+      std::pair<std::string,
       rclcpp_lifecycle::LifecyclePublisher
       <octomap_msgs::msg::Octomap>::SharedPtr>(
         *it, pub));
@@ -612,7 +626,8 @@ YolactROS23D::setOctomapsPublishers(
 CallbackReturnT
 YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
 {
-  RCLCPP_INFO(this->get_logger(), "[%s] Configuring from [%s] state...",
+  RCLCPP_INFO(
+    this->get_logger(), "[%s] Configuring from [%s] state...",
     this->get_name(), state.label().c_str());
 
   // Get Bboxes params
@@ -634,7 +649,8 @@ YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
 CallbackReturnT
 YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
 {
-  RCLCPP_INFO(this->get_logger(), "[%s] Activating from [%s] state...",
+  RCLCPP_INFO(
+    this->get_logger(), "[%s] Activating from [%s] state...",
     this->get_name(), state.label().c_str());
 
   yolact3d_pub_->on_activate();
@@ -652,7 +668,8 @@ YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
 CallbackReturnT
 YolactROS23D::on_deactivate(const rclcpp_lifecycle::State & state)
 {
-  RCLCPP_INFO(this->get_logger(), "[%s] Deactivating from [%s] state...",
+  RCLCPP_INFO(
+    this->get_logger(), "[%s] Deactivating from [%s] state...",
     this->get_name(), state.label().c_str());
 
   yolact3d_pub_->on_deactivate();
@@ -670,7 +687,8 @@ YolactROS23D::on_deactivate(const rclcpp_lifecycle::State & state)
 CallbackReturnT
 YolactROS23D::on_cleanup(const rclcpp_lifecycle::State & state)
 {
-  RCLCPP_INFO(this->get_logger(), "[%s] Cleanning Up from [%s] state...",
+  RCLCPP_INFO(
+    this->get_logger(), "[%s] Cleanning Up from [%s] state...",
     this->get_name(), state.label().c_str());
 
   yolact3d_pub_.reset();
@@ -688,7 +706,8 @@ YolactROS23D::on_cleanup(const rclcpp_lifecycle::State & state)
 CallbackReturnT
 YolactROS23D::on_shutdown(const rclcpp_lifecycle::State & state)
 {
-  RCLCPP_INFO(this->get_logger(), "[%s] Shutting Down from [%s] state...",
+  RCLCPP_INFO(
+    this->get_logger(), "[%s] Shutting Down from [%s] state...",
     this->get_name(), state.label().c_str());
 
   yolact3d_pub_.reset();
@@ -706,7 +725,8 @@ YolactROS23D::on_shutdown(const rclcpp_lifecycle::State & state)
 CallbackReturnT
 YolactROS23D::on_error(const rclcpp_lifecycle::State & state)
 {
-  RCLCPP_INFO(this->get_logger(), "[%s] Shutting Down from [%s] state...",
+  RCLCPP_INFO(
+    this->get_logger(), "[%s] Shutting Down from [%s] state...",
     this->get_name(), state.label().c_str());
   return CallbackReturnT::SUCCESS;
 }
