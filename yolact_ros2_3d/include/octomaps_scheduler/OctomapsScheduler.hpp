@@ -28,11 +28,11 @@
 #include <opencv2/core/mat.hpp>
 #include <octomap_msgs/msg/octomap.hpp>
 #include <sensor_msgs/msg/point_cloud.hpp>
-#include "gb_visual_detection_3d_msgs/msg/bounding_box3d.hpp"
 #include <string>
 #include <vector>
 #include <map>
 #include <memory>
+#include "gb_visual_detection_3d_msgs/msg/bounding_box3d.hpp"
 
 #ifndef OCTOMAPS_SCHEDULER__OCTOMAPSSCHEDULER_HPP_
 #define OCTOMAPS_SCHEDULER__OCTOMAPSSCHEDULER_HPP_
