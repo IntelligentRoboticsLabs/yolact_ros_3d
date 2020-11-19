@@ -32,8 +32,8 @@
 #include <limits>
 #include <algorithm>
 
-#define MAXKERELSIZE 2500
-#define MINKERELSIZE 9
+#define MAXKERNELSIZE 2500
+#define MINKERNELSIZE 9
 
 using std::placeholders::_1;
 using CallbackReturnT =
@@ -56,7 +56,16 @@ YolactROS23D::YolactROS23D()
   this->declare_parameter("minimum_probability", 0.3);
   this->declare_parameter("interested_classes");
   this->declare_parameter("eroding_factors");
+  this->declare_parameter("thinning_factors");
   this->declare_parameter("debug", false);
+
+  this->declare_parameter("dynamic_classes");
+  this->declare_parameter("static_classes");
+  this->declare_parameter("hit_probability");
+  this->declare_parameter("miss_probability");
+  this->declare_parameter("octomaps_frame", "map");
+  this->declare_parameter("margin_error", 0.05);
+  this->declare_parameter("voxel_res", 0.1);
 
   this->configure();
 
@@ -72,36 +81,62 @@ YolactROS23D::YolactROS23D()
   markers_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
     "/yolact_ros2_3d/markers", 1);
 
+  eroded_mask_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
+    "/yolact_ros2_3d/eroded_mask", 1);
+
+  thinned_mask_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
+    "/yolact_ros2_3d/thinned_mask", 1);
+
   this->activate();
 }
 
-bool
-YolactROS23D::setErodingFactors()
+std::map<std::string, int>
+YolactROS23D::setMaskFactors(const std::vector<std::string> & v, bool * ok)
 {
-  std::vector<std::string> eroding_factors_v_;
-  int eroding_factor;
+  std::map<std::string, int> map_factors;
+  int factor;
 
-  this->get_parameter("eroding_factors", eroding_factors_v_);
-
-  if (eroding_factors_v_.size() != interested_classes_.size()) {
+  if (v.size() != interested_classes_.size()) {
     RCLCPP_ERROR(this->get_logger(), "Eroding Factors Parameter is Invalid!\n");
-    return false;
+    *ok = false;
   }
 
-  for (unsigned int i = 0; i < interested_classes_.size(); i++) {
-    eroding_factor = atoi(eroding_factors_v_[i].c_str());
-    if (eroding_factor < 0 || eroding_factor > 100) {
+  for (unsigned int i = 0; i < interested_classes_.size() && *ok; i++) {
+    factor = atoi(v[i].c_str());
+    if (factor < 0 || factor > 100) {
       RCLCPP_ERROR(this->get_logger(), "Eroding Factors Parameter is Invalid!\n");
-      return false;
+      *ok = false;
+      break;
     }
 
     auto element = std::pair<std::string, int>(
-      interested_classes_[i], eroding_factor);
+      interested_classes_[i], factor);
 
-    eroding_factors_.insert(element);
+    map_factors.insert(element);
+  }
+  return map_factors;
+}
+
+bool
+YolactROS23D::setMasksFactors()
+{
+  /*
+   * Set eroding_factors_ and thinning_factors_. Return true if success and
+   * false if failure
+   */
+
+  std::vector<std::string> eroding_factors_v, thinning_factors_v;
+  bool ok = true;
+
+  this->get_parameter("eroding_factors", eroding_factors_v);
+  this->get_parameter("thinning_factors", thinning_factors_v);
+
+  eroding_factors_ = setMaskFactors(eroding_factors_v, &ok);
+  if (ok) {
+    thinning_factors_ = setMaskFactors(thinning_factors_v, &ok);
   }
 
-  return true;
+  return ok;
 }
 
 bool
@@ -155,7 +190,7 @@ YolactROS23D::getMask(yolact_ros2_msgs::msg::Detection det, cv::Mat * output_mas
 }
 
 void
-YolactROS23D::erodeMask(std::string class_name, cv::Mat * mask, cv::Mat * eroded_mask)
+YolactROS23D::thinMask(const std::string & class_name, cv::Mat * mask, cv::Mat * thinned_mask)
 {
   /*
    * Erode mask 'mask' applying eroded factor that corresponds to 'class_name'
@@ -167,27 +202,73 @@ YolactROS23D::erodeMask(std::string class_name, cv::Mat * mask, cv::Mat * eroded
   double max;
   cv::Mat kernel;
 
-  eroding_factor = eroding_factors_[class_name];
-  kernel_area = MAXKERELSIZE - eroding_factor * (MAXKERELSIZE) / 100;
-  if (kernel_area < MINKERELSIZE) {
-    kernel_area = MINKERELSIZE;
+  eroding_factor = thinning_factors_[class_name];
+  kernel_area = MAXKERNELSIZE - (eroding_factor * MAXKERNELSIZE / 100);
+  if (kernel_area < MINKERNELSIZE) {
+    kernel_area = MINKERNELSIZE;
   }
-  *eroded_mask = cv::Mat(mask->size(), CV_8U, cv::Scalar(0));
+  *thinned_mask = cv::Mat(mask->size(), CV_8U, cv::Scalar(0));
   cv::Mat temp(mask->size(), CV_8U);
-  cv::Mat element = cv::getStructuringElement(cv::MORPH_CROSS,
+  kernel = cv::getStructuringElement(cv::MORPH_CROSS,
       cv::Size(static_cast<int>(sqrt(kernel_area)),
       static_cast<int>(sqrt(kernel_area))));
 
   do {
-    cv::morphologyEx(*mask, temp, cv::MORPH_OPEN, element);
+    cv::morphologyEx(*mask, temp, cv::MORPH_OPEN, kernel);
     cv::bitwise_not(temp, temp);
     cv::bitwise_and(*mask, temp, temp);
-    cv::bitwise_or(*eroded_mask, temp, *eroded_mask);
-    cv::erode(*mask, *mask, element);
+    cv::bitwise_or(*thinned_mask, temp, *thinned_mask);
+    cv::erode(*mask, *mask, kernel);
 
     cv::minMaxLoc(*mask, 0, &max);
     done = (max == 0);
   } while (!done);
+}
+
+void
+YolactROS23D::erodeMask(
+  const std::string & class_name, const cv::Mat & mask, cv::Mat * eroded_mask)
+{
+  /*
+   * Erode mask 'mask' applying eroded factor that corresponds to 'class_name'
+   * and it is loaded at 'eroded_mask'
+   */
+
+  int eroding_factor, kernel_area;
+  cv::Mat kernel;
+
+  eroding_factor = eroding_factors_[class_name];
+  kernel_area = eroding_factor * (mask.rows * mask.cols) / 100;
+
+  kernel = cv::getStructuringElement(cv::MORPH_RECT,
+      cv::Size(static_cast<int>(sqrt(kernel_area)),
+      static_cast<int>(sqrt(kernel_area))));
+
+  cv::erode(mask, *eroded_mask, kernel);
+}
+
+bool
+YolactROS23D::getOctomapPointCloud(
+  const sensor_msgs::msg::PointCloud2 & orig_pc2,
+  sensor_msgs::msg::PointCloud2 & local_pc2,
+  sensor_msgs::msg::PointCloud * out_pc)
+{
+  geometry_msgs::msg::TransformStamped transform;
+
+  try {
+    transform = tfBuffer_.lookupTransform(octomaps_frame_, orig_pc2.header.frame_id,
+        orig_pc2.header.stamp, tf2::durationFromSec(2.0));
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_ERROR(this->get_logger(), "Transform error of sensor data: %s, %s\n",
+      ex.what(), "quitting callback");
+    return false;
+  }
+
+  tf2::doTransform<sensor_msgs::msg::PointCloud2>(
+    orig_pc2, local_pc2, transform);
+  sensor_msgs::convertPointCloud2ToPointCloud(local_pc2, *out_pc);
+
+  return true;
 }
 
 bool
@@ -255,8 +336,19 @@ YolactROS23D::calculate_boxes(
   const sensor_msgs::msg::PointCloud & cloud_pc,
   gb_visual_detection_3d_msgs::msg::BoundingBoxes3d * boxes)
 {
-  cv::Mat mask, eroded_mask;
+  cv::Mat mask, thinned_mask, eroded_mask;
   gb_visual_detection_3d_msgs::msg::BoundingBox3d bbox;
+  sensor_msgs::msg::PointCloud octomap_pc;
+  sensor_msgs::msg::PointCloud2 octomap_pc2;
+
+  if (working_frame_ == octomaps_frame_) {
+    octomap_pc = cloud_pc;
+    octomap_pc2 = cloud_pc2;
+  } else {
+    if (!getOctomapPointCloud(cloud_pc2, octomap_pc2, &octomap_pc)) {
+      return;
+    }
+  }
 
   boxes->header.stamp = cloud_pc2.header.stamp;
   boxes->header.frame_id = cloud_pc2.header.frame_id;
@@ -270,16 +362,55 @@ YolactROS23D::calculate_boxes(
     }
 
     getMask(det, &mask);
-    erodeMask(det.class_name, &mask, &eroded_mask);
+    erodeMask(det.class_name, mask, &eroded_mask);
+    thinMask(det.class_name, &mask, &thinned_mask);
 
     if (debug_) {
-      cv::imshow("Skeleton", eroded_mask);
+      publishMasks(eroded_mask, thinned_mask);
+      cv::imshow("Eroded", eroded_mask);
+      cv::waitKey(1);
+      cv::imshow("Skeleton", thinned_mask);
       cv::waitKey(1);
     }
 
-    if (calculateBbox(cloud_pc2, cloud_pc, det, eroded_mask, &bbox)) {
+    if (calculateBbox(cloud_pc2, cloud_pc, det, thinned_mask, &bbox)) {
       boxes->bounding_boxes.push_back(bbox);
     }
+
+    // Set octomap of the object 'det.class_name'
+
+    if (octomaps_sch_.getObject(det.class_name, NULL)) {
+      RCLCPP_INFO(get_logger(), "set octomap de [%s]\n", det.class_name.c_str());
+      octomaps_sch_.setOctomap(det.class_name, eroded_mask, octomap_pc,
+        det.box.x1, det.box.y1, octomap_pc2.width);
+    }
+  }
+}
+
+void
+YolactROS23D::publishMasks(const cv::Mat & eroded, const cv::Mat & thinned)
+{
+  cv_bridge::CvImage eroded_cv, thinned_cv;
+  sensor_msgs::msg::Image eroded_img, thinned_img;
+
+  eroded_cv.header.stamp = clock_.now();
+  eroded_cv.header.frame_id = working_frame_;
+  eroded_cv.encoding = "8UC1";
+  eroded_cv.image = eroded;
+
+  thinned_cv.header.stamp = clock_.now();
+  thinned_cv.header.frame_id = working_frame_;
+  thinned_cv.encoding = "8UC1";
+  thinned_cv.image = thinned;
+
+  eroded_cv.toImageMsg(eroded_img);
+  thinned_cv.toImageMsg(thinned_img);
+
+  if (eroded_mask_pub_->is_activated()) {
+    eroded_mask_pub_->publish(eroded_img);
+  }
+  if (thinned_mask_pub_->is_activated()) {
+    thinned_mask_pub_->publish(thinned_img);
   }
 }
 
@@ -323,13 +454,36 @@ YolactROS23D::publishMarkers(const gb_visual_detection_3d_msgs::msg::BoundingBox
 }
 
 void
+YolactROS23D::publishOctomaps()
+{
+  octomap_msgs::msg::Octomap map;
+  size_t size;
+  rclcpp::Publisher
+    <octomap_msgs::msg::Octomap>::SharedPtr publisher;
+
+  for (const auto & obj : octomaps_sch_.getObjects()) {
+    if (octomaps_sch_.getOctomap(obj.name, &map, &size)) {
+      RCLCPP_WARN(get_logger(), "Tamaño: %d\n", (int)size);
+      if (size > 1) {
+
+        // Publish the octomap:
+
+        RCLCPP_WARN(get_logger(), "Publicando octomap de: %s\n", obj.name.c_str());
+        publisher = octomaps_pubs_.at(obj.name);
+        publisher->publish(map);
+      }
+    }
+  }
+}
+
+void
 YolactROS23D::update()
 {
   if (this->get_current_state().id() != lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
     return;
   }
 
-  if ((clock_.now() - last_detection_ts_).seconds() > 2.0 || !pc_received_) {
+  if ((clock_.now() - last_detection_ts_).seconds() > 1.0 || !pc_received_) {
     return;
   }
 
@@ -351,10 +505,107 @@ YolactROS23D::update()
   sensor_msgs::convertPointCloud2ToPointCloud(local_pointcloud, cloud_pc);
 
   calculate_boxes(local_pointcloud, cloud_pc, &output_bboxes);
+  octomaps_sch_.updateOctomaps();
+
+  publishOctomaps();
+
   publishMarkers(output_bboxes);
 
   if (yolact3d_pub_->is_activated()) {
     yolact3d_pub_->publish(output_bboxes);
+  }
+}
+
+void
+YolactROS23D::initBboxesParams()
+{
+  this->get_parameter("yolact_ros_topic", input_bbx_topic_);
+  this->get_parameter("output_bbx3d_topic", output_bbx3d_topic_);
+  this->get_parameter("point_cloud_topic", point_cloud_topic_);
+  this->get_parameter("working_frame", working_frame_);
+  this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
+  this->get_parameter("minimum_probability", minimum_probability_);
+  this->get_parameter("interested_classes", interested_classes_);
+  this->get_parameter("debug", debug_);
+}
+
+bool
+YolactROS23D::initOctomapsParams()
+{
+  std::vector<std::string> dynamic_classes, static_classes,
+    hit_probabilities, miss_probabilities;
+  std::string debug;
+  double margin_error, voxel_res;
+  bool ok;
+
+  dynamic_classes.clear();
+  static_classes.clear();
+  hit_probabilities.clear();
+  miss_probabilities.clear();
+
+  this->get_parameter("dynamic_classes", dynamic_classes);
+  this->get_parameter("static_classes", static_classes);
+  this->get_parameter("hit_probability", hit_probabilities);
+  this->get_parameter("miss_probability", miss_probabilities);
+  this->get_parameter("octomaps_frame", octomaps_frame_);
+  this->get_parameter("margin_error", margin_error);
+  this->get_parameter("voxel_res", voxel_res);
+
+  octomaps_sch_ = octomaps_scheduler::OctomapsScheduler(
+    margin_error, voxel_res, octomaps_frame_);
+
+  ok = octomaps_sch_.setObjects(dynamic_classes, static_classes,
+    hit_probabilities, miss_probabilities, debug);
+  if (ok) {
+    RCLCPP_INFO(this->get_logger(), "%s\n", debug.c_str());
+    setOctomapsPublishers(dynamic_classes, static_classes);
+  } else {
+    RCLCPP_ERROR(this->get_logger(), "%s\n", debug.c_str());
+  }
+  return ok;
+}
+
+void
+YolactROS23D::setOctomapsPublishers(
+  const std::vector<std::string> & dynamics,
+  const std::vector<std::string> & statics)
+{
+  std::string topic_name;
+
+  // Dynamic Classes:
+
+  for (auto it = dynamics.begin(); it != dynamics.end(); it++) {
+    topic_name = "/yolact_ros2_3d/octomaps/dynamics/" + *it;
+    std::replace(topic_name.begin(), topic_name.end(), ' ', '_');
+
+    rclcpp_lifecycle::LifecyclePublisher
+      <octomap_msgs::msg::Octomap>::SharedPtr pub;
+
+    pub = create_publisher<octomap_msgs::msg::Octomap>(
+      topic_name, rclcpp::SystemDefaultsQoS());
+
+    octomaps_pubs_.insert(std::pair<std::string,
+      rclcpp_lifecycle::LifecyclePublisher
+      <octomap_msgs::msg::Octomap>::SharedPtr>(
+        *it, pub));
+  }
+
+  // Static Classes:
+
+  for (auto it = statics.begin(); it != statics.end(); it++) {
+    topic_name = "/yolact_ros2_3d/octomaps/statics/" + *it;
+    std::replace(topic_name.begin(), topic_name.end(), ' ', '_');
+
+    rclcpp_lifecycle::LifecyclePublisher
+      <octomap_msgs::msg::Octomap>::SharedPtr pub;
+
+    pub = this->create_publisher<octomap_msgs::msg::Octomap>(
+      topic_name, rclcpp::SystemDefaultsQoS());
+
+    octomaps_pubs_.insert(std::pair<std::string,
+      rclcpp_lifecycle::LifecyclePublisher
+      <octomap_msgs::msg::Octomap>::SharedPtr>(
+        *it, pub));
   }
 }
 
@@ -364,20 +615,20 @@ YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Configuring from [%s] state...",
     this->get_name(), state.label().c_str());
 
-  this->get_parameter("yolact_ros_topic", input_bbx_topic_);
-  this->get_parameter("output_bbx3d_topic", output_bbx3d_topic_);
-  this->get_parameter("point_cloud_topic", point_cloud_topic_);
-  this->get_parameter("working_frame", working_frame_);
-  this->get_parameter("maximum_detection_threshold", maximum_detection_threshold_);
-  this->get_parameter("minimum_probability", minimum_probability_);
-  this->get_parameter("interested_classes", interested_classes_);
-  this->get_parameter("debug", debug_);
+  // Get Bboxes params
 
-  if (setErodingFactors()) {
-    return CallbackReturnT::SUCCESS;
+  initBboxesParams();
+  if (!initOctomapsParams()) {
+    return CallbackReturnT::FAILURE;
   }
 
-  return CallbackReturnT::FAILURE;
+  // Get Octomaps Params:
+
+  if (!setMasksFactors()) {
+    return CallbackReturnT::FAILURE;
+  }
+
+  return CallbackReturnT::SUCCESS;
 }
 
 CallbackReturnT
@@ -388,6 +639,12 @@ YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
 
   yolact3d_pub_->on_activate();
   markers_pub_->on_activate();
+  eroded_mask_pub_->on_activate();
+  thinned_mask_pub_->on_activate();
+
+  for (auto it = octomaps_pubs_.begin(); it != octomaps_pubs_.end(); it++) {
+    it->second->on_activate();
+  }
 
   return CallbackReturnT::SUCCESS;
 }
@@ -400,6 +657,12 @@ YolactROS23D::on_deactivate(const rclcpp_lifecycle::State & state)
 
   yolact3d_pub_->on_deactivate();
   markers_pub_->on_deactivate();
+  eroded_mask_pub_->on_deactivate();
+  thinned_mask_pub_->on_deactivate();
+
+  for (auto it = octomaps_pubs_.begin(); it != octomaps_pubs_.end(); it++) {
+    it->second->on_deactivate();
+  }
 
   return CallbackReturnT::SUCCESS;
 }
@@ -412,6 +675,12 @@ YolactROS23D::on_cleanup(const rclcpp_lifecycle::State & state)
 
   yolact3d_pub_.reset();
   markers_pub_.reset();
+  eroded_mask_pub_.reset();
+  thinned_mask_pub_.reset();
+
+  for (auto it = octomaps_pubs_.begin(); it != octomaps_pubs_.end(); it++) {
+    it->second.reset();
+  }
 
   return CallbackReturnT::SUCCESS;
 }
@@ -424,6 +693,12 @@ YolactROS23D::on_shutdown(const rclcpp_lifecycle::State & state)
 
   yolact3d_pub_.reset();
   markers_pub_.reset();
+  eroded_mask_pub_.reset();
+  thinned_mask_pub_.reset();
+
+  for (auto it = octomaps_pubs_.begin(); it != octomaps_pubs_.end(); it++) {
+    it->second.reset();
+  }
 
   return CallbackReturnT::SUCCESS;
 }

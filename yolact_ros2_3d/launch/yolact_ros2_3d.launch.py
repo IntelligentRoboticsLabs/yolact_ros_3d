@@ -17,25 +17,32 @@ from launch import LaunchDescription
 from launch.actions import SetEnvironmentVariable
 from launch_ros.actions import Node
 
-params_file = '/config/yolact_3d.yaml'
+params_file1 = '/config/yolact_3d.yaml'
+params_file2 = '/config/octomaps_config.yaml'
 
 
 def generate_launch_description():
 
-    # Load params
+    # Load params:
+
     pkg_dir = get_package_share_directory('yolact_ros2_3d')
-    config_file_path = pkg_dir + params_file
+    config_file1_path = pkg_dir + params_file1
+    config_file2_path = pkg_dir + params_file2
 
     stdout_linebuf_envvar = SetEnvironmentVariable(
         'RCUTILS_CONSOLE_STDOUT_LINE_BUFFERED', '1')
 
     # Create Node:
+
     yolact3d_node = Node(
         package='yolact_ros2_3d',
         node_executable='yolact_ros2_3d_node',
         node_name='yolact_ros2_3d_node',
         output='screen',
-        parameters=[config_file_path]
+        parameters=[config_file1_path, config_file2_path],
+        remappings=[
+            ("/yolact_ros2_3d/octomaps/dynamics/person", "/dummy_octomap")
+        ]
     )
 
     ld = LaunchDescription()

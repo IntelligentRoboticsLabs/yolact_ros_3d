@@ -31,6 +31,8 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(octomap REQUIRED)
+find_package(octomap_msgs REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3)
 
@@ -47,6 +49,8 @@ set(dependencies
   tf2_sensor_msgs
   geometry_msgs
   visualization_msgs
+  octomap
+  octomap_msgs
 )
 
 include_directories(
@@ -54,15 +58,20 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
   ${Eigen3_INCLUDE_DIRS}
 )
+add_library(${PROJECT_NAME}_octomaps_scheduler SHARED
+  src/octomaps_scheduler/OctomapsScheduler.cpp
+)
+ament_target_dependencies(${PROJECT_NAME}_octomaps_scheduler ${dependencies})
 
 add_library(${PROJECT_NAME} SHARED
   src/yolact_ros2_3d/YolactROS23D.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
+target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_octomaps_scheduler octomap)
 
 add_executable(yolact_ros2_3d_node src/yolact3d_node.cpp)
 ament_target_dependencies(yolact_ros2_3d_node ${dependencies})
-target_link_libraries(yolact_ros2_3d_node ${PROJECT_NAME})
+target_link_libraries(yolact_ros2_3d_node ${PROJECT_NAME} octomap)
 
 target_include_directories(yolact_ros2_3d_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -77,10 +86,16 @@ target_include_directories(yolact_ros2_3d_node PUBLIC
 install(DIRECTORY include/
   DESTINATION include/
 )
-install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME}/)
+install(
+  DIRECTORY
+  launch
+  config
+  DESTINATION share/${PROJECT_NAME}/
+)
 
 install(TARGETS
   ${PROJECT_NAME}
+  ${PROJECT_NAME}_octomaps_scheduler
   yolact_ros2_3d_node
   EXPORT export_${PROJECT_NAME}
   DESTINATION lib/${PROJECT_NAME}

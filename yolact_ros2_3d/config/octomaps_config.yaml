@@ -1,0 +1,9 @@
+yolact_ros2_3d_node:
+  ros__parameters:
+    dynamic_classes: ["person"]
+    static_classes: ["tv"]
+    hit_probability: ["30"]
+    miss_probability: ["15"]
+    octomaps_frame: camera_link
+    margin_error: 0.05
+    voxel_res: 0.05
