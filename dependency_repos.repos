@@ -7,6 +7,10 @@ repositories:
         type: git
         url: https://github.com/IntelligentRoboticsLabs/gb_visual_detection_3d_msgs.git
         version: eloquent
+    octomap_msgs:
+        type: git
+        url: https://github.com/OctoMap/octomap_msgs
+        version: ros2
     rosidl:
         type: git
         url: https://github.com/ros2/rosidl_defaults.git
