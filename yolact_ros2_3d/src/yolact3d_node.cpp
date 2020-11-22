@@ -15,32 +15,22 @@
 /* Author: Francisco Martín fmrico@gmail.com */
 /* Author: Fernando González fergonzaramos@yahoo.es */
 
-#include <rclcpp/rclcpp.hpp>
+
 #include <memory>
+
 #include "yolact_ros2_3d/YolactROS23D.hpp"
-
-#define HZ 10
-
+#include "rclcpp/rclcpp.hpp"
 int
 main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
+  rclcpp::executors::SingleThreadedExecutor executor;
 
   auto node = std::make_shared<yolact_ros2_3d::YolactROS23D>();
+  executor.add_node(node->get_node_base_interface());
 
-  // Configure loop rate to 10Hz
-
-  rclcpp::Rate loop_rate(HZ);
-  while (rclcpp::ok()) {
-    rclcpp::spin_some(node->get_node_base_interface());
-
-    // update
-
-    node->update();
-    loop_rate.sleep();
-  }
-
-  node->deactivate();
+  executor.spin();
+  
   rclcpp::shutdown();
 
   exit(EXIT_SUCCESS);
