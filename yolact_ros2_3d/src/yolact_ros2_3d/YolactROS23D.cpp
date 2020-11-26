@@ -92,7 +92,8 @@ YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
     std::bind(&YolactROS23D::image_callback, this, std::placeholders::_1));
 
   yolact_ros_sub_ = create_subscription<yolact_ros2_msgs::msg::Detections>(
-    input_bbx_topic_, 1, std::bind(&YolactROS23D::yolact_callback, this, std::placeholders::_1));
+    input_bbx_topic_, rclcpp::QoS(1).best_effort().durability_volatile(),
+    std::bind(&YolactROS23D::yolact_callback, this, std::placeholders::_1));
 
   octomaps_pub_ = create_publisher<octomap_msgs::msg::Octomap>("~/output_octomaps", 100);
   octomaps_pub_->on_activate();
@@ -167,6 +168,8 @@ YolactROS23D::timer_callback()
 
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::fromROSMsg(*last_pointcloud_, *cloud);
+  pcl::KdTreeFLANN<pcl::PointXYZRGB> kdtree;
+
   auto detection_octree = get_initial_octree();
 
   for (auto & detection : last_detection_->detections) {
@@ -177,17 +180,18 @@ YolactROS23D::timer_callback()
       continue;
     }
 
+    // get the part of the pointcloud that corresponds with the 2d bonding box (detection):
+
     auto detection_cloud = get_detection_cloud(detection, cloud);
     
     if (!detection_cloud->empty()) {
-      pcl::KdTreeFLANN<pcl::PointXYZRGB> kdtree;
       kdtree.setInputCloud(detection_cloud);
   
       get_octree_from_detection(kdtree, detection, cloud, detection_octree);
     }
   }
 
-  if (detection_octree!= nullptr) {
+  if (detection_octree != nullptr) {
     publish_octree(detection_octree, last_pointcloud_);
   }
 
@@ -197,8 +201,6 @@ YolactROS23D::timer_callback()
     out_cloud.header = last_pointcloud_->header;
     detection_cloud_pub->publish(out_cloud);
   }*/
-
-
 }
 
 bool
@@ -217,11 +219,11 @@ YolactROS23D::get_detection_color(const yolact_ros2_msgs::msg::Detection & detec
 {
   pcl::PointXYZRGB point;
 
-  for (int i = 0; i < interested_classes_.size(); i++) {
-    if (detection.class_name == interested_classes_[i]) {
-      std::string r_s =  class_colors_[i].substr(0, 2);
-      std::string g_s =  class_colors_[i].substr(2, 2);
-      std::string b_s =  class_colors_[i].substr(4, 2);
+  for (size_t i = 0; i < interested_classes_.size(); i++) {
+    if (detection.class_name == interested_classes_[(int)i]) {
+      std::string r_s =  class_colors_[(int)i].substr(0, 2);
+      std::string g_s =  class_colors_[(int)i].substr(2, 2);
+      std::string b_s =  class_colors_[(int)i].substr(4, 2);
 
       point.r = stoi(r_s, 0, 16);
       point.g = stoi(g_s, 0, 16);
