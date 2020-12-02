@@ -100,7 +100,8 @@ private:
     pcl::KdTreeFLANN<pcl::PointXYZRGB> & kdtree,
     const yolact_ros2_msgs::msg::Detection & detection,
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
-    std::shared_ptr<octomap::ColorOcTree> octree);
+    std::shared_ptr<octomap::ColorOcTree> octree,
+    double probability);
 
   std::shared_ptr<octomap::ColorOcTree> get_initial_octree();
 
@@ -111,7 +112,8 @@ private:
   void expand_octree(
     const octomap::point3d & point,
     pcl::KdTreeFLANN<pcl::PointXYZRGB> & kdtree,
-    std::shared_ptr<octomap::ColorOcTree> octree);
+    std::shared_ptr<octomap::ColorOcTree> octree,
+    double probability);
 
   void publish_octree(std::shared_ptr<octomap::ColorOcTree> octree,
     sensor_msgs::msg::PointCloud2::UniquePtr & pointcloud);

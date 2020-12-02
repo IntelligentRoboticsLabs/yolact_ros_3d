@@ -183,7 +183,7 @@ YolactROS23D::timer_callback()
       pcl::KdTreeFLANN<pcl::PointXYZRGB> kdtree;
       kdtree.setInputCloud(detection_cloud);
   
-      get_octree_from_detection(kdtree, detection, cloud, detection_octree);
+      get_octree_from_detection(kdtree, detection, cloud, detection_octree, detection.score);
     }
   }
 
@@ -250,6 +250,10 @@ YolactROS23D::get_detection_cloud(
       auto pc_index = ((j + detection.box.y1) * last_image_->width) + (i + detection.box.x1);
       auto point = cloud->at(pc_index);
 
+      // double dist = sqrt(point.x * point.x + point.y * point.y + point.z + point .z);
+
+      //if (dist >= 3.0) continue;
+    
       point.r = color_point.r;
       point.g = color_point.g;
       point.b = color_point.b;
@@ -268,7 +272,8 @@ YolactROS23D::get_octree_from_detection(
   pcl::KdTreeFLANN<pcl::PointXYZRGB> & kdtree,
   const yolact_ros2_msgs::msg::Detection & detection,
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
-  std::shared_ptr<octomap::ColorOcTree> octree)
+  std::shared_ptr<octomap::ColorOcTree> octree,
+  double probability)
 {
   if (octree != nullptr) {
     int i = detection.box.x1 + (detection.mask.width / 2);
@@ -277,7 +282,7 @@ YolactROS23D::get_octree_from_detection(
     auto pc_index = (j * last_image_->width) + i;
     auto point = cloud->at(pc_index);
     octomap::point3d p3d(point.x, point.y, point.z);
-    expand_octree(p3d, kdtree, octree);
+    expand_octree(p3d, kdtree, octree, probability);
   }
 }
 
@@ -285,7 +290,8 @@ void
 YolactROS23D::expand_octree(
   const octomap::point3d & point,
   pcl::KdTreeFLANN<pcl::PointXYZRGB> & kdtree,
-  std::shared_ptr<octomap::ColorOcTree> octree)
+  std::shared_ptr<octomap::ColorOcTree> octree,
+  double probability)
 {
   std::vector<int> k_indices;
   std::vector<float> k_sqr_distances;
@@ -299,7 +305,7 @@ YolactROS23D::expand_octree(
   
   if (kdtree.radiusSearch(colpoint, voxel_res_ / 2.0, k_indices, k_sqr_distances, 1) > 0) {
     octree->updateNode(colpoint.x, colpoint.y, colpoint.z, false);
-    octree->setNodeValue(colpoint.x, colpoint.y, colpoint.z, 1.0, true);
+    octree->setNodeValue(colpoint.x, colpoint.y, colpoint.z, probability, true);
     octree->setNodeColor(colpoint.x, colpoint.y, colpoint.z, colpoint.r, colpoint.g, colpoint.b);
 
     for (double dx = -voxel_res_; dx <= (voxel_res_ + 0.001); dx += voxel_res_) {
@@ -308,7 +314,7 @@ YolactROS23D::expand_octree(
           
           octomap::point3d p3d(point.x() + dx, point.y() + dy, point.z() + dz);
           if (octree->search(p3d) == nullptr) {            
-            expand_octree(p3d, kdtree, octree);
+            expand_octree(p3d, kdtree, octree, probability);
           }
         }
       }
