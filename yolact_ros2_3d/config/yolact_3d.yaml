@@ -6,7 +6,7 @@ yolact_ros2_3d_node:
     image_topic: /intel_realsense_r200_depth/image_raw
     working_frame: camera_link
     maximum_detection_threshold: 0.2
-    minimum_probability: 0.1
+    minimum_probability: 0.0
     interested_classes: ["person", "tv", "bottle"]
     class_colors: ["00FF00", "0000FF", "FFFF00"]
     debug: true

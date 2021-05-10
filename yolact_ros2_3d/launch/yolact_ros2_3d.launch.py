@@ -26,8 +26,15 @@ def generate_launch_description():
     pkg_dir = get_package_share_directory('yolact_ros2_3d')
     config_file_path = pkg_dir + params_file
 
-    stdout_linebuf_envvar = SetEnvironmentVariable(
-        'RCUTILS_CONSOLE_STDOUT_LINE_BUFFERED', '1')
+    #stdout_linebuf_envvar = SetEnvironmentVariable(
+    #    'RCUTILS_CONSOLE_STDOUT_LINE_BUFFERED', '1')
+
+    stdout_loggin_envvar = SetEnvironmentVariable(
+        'RCUTILS_LOGGING_USE_STDOUT', '1'
+    )
+    stdout_buffer_envvar = SetEnvironmentVariable(
+        'RCUTILS_LOGGING_BUFFERED_STREAM', '1'
+    )
 
     # Create Node:
     yolact3d_node = Node(
@@ -39,7 +46,9 @@ def generate_launch_description():
     )
 
     ld = LaunchDescription()
-    ld.add_action(stdout_linebuf_envvar)
+    #ld.add_action(stdout_linebuf_envvar)
+    ld.add_action(stdout_loggin_envvar)
+    ld.add_action(stdout_buffer_envvar)
     ld.add_action(yolact3d_node)
 
     return ld
