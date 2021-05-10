@@ -24,6 +24,7 @@
 #include <memory>
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 #define THRESHOLDMAX 0.97
 
@@ -35,8 +36,8 @@ OctomapsScheduler::OctomapsScheduler()
   printf("[INFO] Octomaps Scheduler Initialized!\n");
 }
 
-OctomapsScheduler::OctomapsScheduler(double margin_error, double voxel_res,
-  const std::string & frame_id)
+OctomapsScheduler::OctomapsScheduler(
+  double margin_error, double voxel_res, const std::string & frame_id)
 {
   /*
    * 'margin_error': margin error of the cells to consider that given a cell
@@ -130,8 +131,8 @@ OctomapsScheduler::getOctomap(
 }
 
 bool
-OctomapsScheduler::isNewCell(double x, double y, double z,
-  const ObjectType & obj)
+OctomapsScheduler::isNewCell(
+  double x, double y, double z, const ObjectType & obj)
 {
   /*
    * Returns if cell centered on (x,y,z) is new or just exists and if exists,
@@ -144,8 +145,8 @@ OctomapsScheduler::isNewCell(double x, double y, double z,
 
   octree = octomaps_dic_.at(obj.name);
 
-  for (auto it = octree->begin_leafs(), end=octree->end_leafs();
-    it!= end && !found; ++it)
+  for (auto it = octree->begin_leafs(), end = octree->end_leafs();
+    it != end && !found; ++it)
   {
     if (fabs(it.getX() - x) <= margin_error_ && fabs(it.getY() - y) <= margin_error_ &&
       fabs(it.getZ() - z) <= margin_error_)
@@ -225,7 +226,6 @@ OctomapsScheduler::setOctomap(
   for (int col = 0; col < mask.cols; col++) {
     for (int row = 0; row < mask.rows; row++) {
       if (static_cast<int>(mask.at<unsigned char>(row, col)) == 255) {
-
         // Get Point from point cloud:
 
         pc_index = ((row + row_min) * pc_width) + (col + col_min);
@@ -275,7 +275,7 @@ OctomapsScheduler::updateOctomap(const ObjectType & obj)
   // Walk by the octree updating nodes as corresponds to each object:
 
   for (octomap::OcTree::leaf_iterator it = octree->begin_leafs(),
-    end=octree->end_leafs(); it != end; ++it)
+    end = octree->end_leafs(); it != end; ++it)
   {
     prob = it->getValue();
     if (prob <= obj.miss_prob / 2.0f) {
