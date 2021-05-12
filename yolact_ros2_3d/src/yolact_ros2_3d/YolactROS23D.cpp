@@ -64,7 +64,8 @@ YolactROS23D::YolactROS23D()
     point_cloud_topic_, 1, std::bind(&YolactROS23D::pointCloudCb, this, std::placeholders::_1));
 
   yolact_ros_sub_ = this->create_subscription<yolact_ros2_msgs::msg::Detections>(
-    input_bbx_topic_, 1, std::bind(&YolactROS23D::yolactCb, this, std::placeholders::_1));
+    input_bbx_topic_, rclcpp::SensorDataQoS(), std::bind(&YolactROS23D::yolactCb, this, 
+    std::placeholders::_1));
 
   yolact3d_pub_ = this->create_publisher<gb_visual_detection_3d_msgs::msg::BoundingBoxes3d>(
     output_bbx3d_topic_, 100);
