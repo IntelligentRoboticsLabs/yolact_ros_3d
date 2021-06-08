@@ -52,7 +52,7 @@ YolactROS23D::YolactROS23D()
   this->declare_parameter("voxel_resolution", 0.1);
   this->declare_parameter("interested_classes");
   this->declare_parameter("class_colors");
-  
+
   this->configure();
   this->activate();
 }
@@ -83,14 +83,20 @@ YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
   RCLCPP_INFO(this->get_logger(), "[%s] Activating from [%s] state...",
     this->get_name(), state.label().c_str());
 
+  RCLCPP_INFO(this->get_logger(), "Susbscribing to cloud point using topic '%s'",
+    point_cloud_topic_.c_str());
   point_cloud_sub_ = create_subscription<sensor_msgs::msg::PointCloud2>(
     point_cloud_topic_, rclcpp::QoS(1).best_effort().durability_volatile(),
     std::bind(&YolactROS23D::pointCloud_callback, this, std::placeholders::_1));
 
+  RCLCPP_INFO(this->get_logger(), "Susbscribing to images using topic '%s'",
+    image_topic_.c_str());
   image_sub_ = create_subscription<sensor_msgs::msg::Image>(
     image_topic_, rclcpp::QoS(1).best_effort().durability_volatile(),
     std::bind(&YolactROS23D::image_callback, this, std::placeholders::_1));
 
+  RCLCPP_INFO(this->get_logger(), "Subscribing to 2D detections using topic '%s'",
+    input_bbx_topic_.c_str());
   yolact_ros_sub_ = create_subscription<yolact_ros2_msgs::msg::Detections>(
     input_bbx_topic_, rclcpp::QoS(1).best_effort().durability_volatile(),
     std::bind(&YolactROS23D::yolact_callback, this, std::placeholders::_1));
@@ -103,6 +109,7 @@ YolactROS23D::on_activate(const rclcpp_lifecycle::State & state)
   timer_ = create_wall_timer(
       100ms, std::bind(&YolactROS23D::timer_callback, this));
 
+  RCLCPP_INFO(this->get_logger(), "[%s] Activated.", this->get_name());
   return CallbackReturnT::SUCCESS;
 }
 
@@ -153,54 +160,59 @@ YolactROS23D::on_error(const rclcpp_lifecycle::State & state)
   return CallbackReturnT::SUCCESS;
 }
 
-void 
+void
 YolactROS23D::timer_callback()
 {
-  if (last_pointcloud_ == nullptr || last_detection_ == nullptr || last_image_ == nullptr) {
-    return;
-  }
-
-  if (((now() - rclcpp::Time(last_pointcloud_->header.stamp)) < 200ms) &&
-    timestamps_diff_long(last_pointcloud_->header.stamp, last_detection_->header.stamp, 200ms)) 
-  {
-    return;
-  }
-
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
-  pcl::fromROSMsg(*last_pointcloud_, *cloud);
-  pcl::KdTreeFLANN<pcl::PointXYZRGB> kdtree;
-
-  auto detection_octree = get_initial_octree();
-
-  for (auto & detection : last_detection_->detections) {
-    if ((detection.score < minimum_probability_) ||
-      (std::find(interested_classes_.begin(), interested_classes_.end(),
-      detection.class_name) == interested_classes_.end()))
+  //RCLCPP_INFO(this->get_logger(), "[%s]",
+  //  this->get_name(), state.label().c_str());
+  if (last_pointcloud_ == nullptr) {
+    RCLCPP_WARN(this->get_logger(), "No Point Clouds received and thus no processing taking place.");
+  } else if(last_detection_ == nullptr) {
+    RCLCPP_WARN(this->get_logger(), "No Detections received and thus no processing taking place.");
+  } else if(last_image_ == nullptr) {
+    RCLCPP_WARN(this->get_logger(), "No Image received and thus no processing taking place.");
+  } else {
+    if (((now() - rclcpp::Time(last_pointcloud_->header.stamp)) < 200ms) &&
+      timestamps_diff_long(last_pointcloud_->header.stamp, last_detection_->header.stamp, 200ms))
     {
-      continue;
-    }
+      RCLCPP_WARN(this->get_logger(),
+        "Last Point Cloud is more than 200ms old and Point Cloud and Detection are more 200ms apart, and thus no processing taking place.");
+    } else {
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+      pcl::fromROSMsg(*last_pointcloud_, *cloud);
+      pcl::KdTreeFLANN<pcl::PointXYZRGB> kdtree;
 
-    // get the part of the pointcloud that corresponds with the 2d bonding box (detection):
+      auto detection_octree = get_initial_octree();
 
-    auto detection_cloud = get_detection_cloud(detection, cloud);
-    
-    if (!detection_cloud->empty()) {
-      kdtree.setInputCloud(detection_cloud);
-  
-      get_octree_from_detection(kdtree, detection, cloud, detection_octree, detection.score);
+      for (auto & detection : last_detection_->detections) {
+        if ((detection.score < minimum_probability_) ||
+          (std::find(interested_classes_.begin(), interested_classes_.end(),
+          detection.class_name) == interested_classes_.end()))
+        {
+          RCLCPP_WARN(this->get_logger(),
+            "Last pointcloud is more than 200ms old and thus no processing taking place.");
+        } else {
+          // get the part of the pointcloud that corresponds with the 2d bonding box (detection):
+          auto detection_cloud = get_detection_cloud(detection, cloud);
+          if (!detection_cloud->empty()) {
+            kdtree.setInputCloud(detection_cloud);
+            get_octree_from_detection(kdtree, detection, cloud, detection_octree, detection.score);
+          }
+        }
+      }
+
+      if (detection_octree != nullptr) {
+        publish_octree(detection_octree, last_pointcloud_);
+      }
+
+      /*if (detection_cloud_pub->get_subscription_count() > 0) {
+        sensor_msgs::msg::PointCloud2 out_cloud;
+        pcl::toROSMsg(*detection_cloud, out_cloud);
+        out_cloud.header = last_pointcloud_->header;
+        detection_cloud_pub->publish(out_cloud);
+      }*/
     }
   }
-
-  if (detection_octree != nullptr) {
-    publish_octree(detection_octree, last_pointcloud_);
-  }
-
-  /*if (detection_cloud_pub->get_subscription_count() > 0) { 
-    sensor_msgs::msg::PointCloud2 out_cloud;
-    pcl::toROSMsg(*detection_cloud, out_cloud);
-    out_cloud.header = last_pointcloud_->header;
-    detection_cloud_pub->publish(out_cloud);
-  }*/
 }
 
 bool
@@ -255,7 +267,7 @@ YolactROS23D::get_detection_cloud(
       // double dist = sqrt(point.x * point.x + point.y * point.y + point.z + point .z);
 
       //if (dist >= 3.0) continue;
-    
+
       point.r = color_point.r;
       point.g = color_point.g;
       point.b = color_point.b;
@@ -265,7 +277,7 @@ YolactROS23D::get_detection_cloud(
       }
     }
   }
-  
+
   return ret;
 }
 
@@ -280,7 +292,7 @@ YolactROS23D::get_octree_from_detection(
   if (octree != nullptr) {
     int i = detection.box.x1 + (detection.mask.width / 2);
     int j = detection.box.y1 + (detection.mask.height / 2);
- 
+
     auto pc_index = (j * last_image_->width) + i;
     auto point = cloud->at(pc_index);
     octomap::point3d p3d(point.x, point.y, point.z);
@@ -297,14 +309,14 @@ YolactROS23D::expand_octree(
 {
   std::vector<int> k_indices;
   std::vector<float> k_sqr_distances;
-  
+
   pcl::PointXYZRGB colpoint = *kdtree.getInputCloud()->begin();  // to get the color
   colpoint.x = point.x();
   colpoint.y = point.y();
   colpoint.z = point.z();
-  
+
   if (std::isnan(colpoint.x) || std::isinf(colpoint.x)) return;
-  
+
   if (kdtree.radiusSearch(colpoint, voxel_res_ / 2.0, k_indices, k_sqr_distances, 1) > 0) {
     octree->updateNode(colpoint.x, colpoint.y, colpoint.z, false);
     octree->setNodeValue(colpoint.x, colpoint.y, colpoint.z, probability, true);
@@ -313,9 +325,9 @@ YolactROS23D::expand_octree(
     for (double dx = -voxel_res_; dx <= (voxel_res_ + 0.001); dx += voxel_res_) {
       for (double dy = -voxel_res_; dy <= (voxel_res_ + 0.001); dy += voxel_res_) {
         for (double dz = -voxel_res_; dz <= (voxel_res_ + 0.001); dz += voxel_res_) {
-          
+
           octomap::point3d p3d(point.x() + dx, point.y() + dy, point.z() + dz);
-          if (octree->search(p3d) == nullptr) {            
+          if (octree->search(p3d) == nullptr) {
             expand_octree(p3d, kdtree, octree, probability);
           }
         }
