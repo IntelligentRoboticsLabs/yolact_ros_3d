@@ -6,7 +6,8 @@ yolact_ros2_3d_node:
     image_topic: /color/image_raw
     working_frame: camera_right_bottom_screw_frame
     maximum_detection_threshold: 0.2
-    minimum_probability: 0.0
+    minimum_probability: 0.5
+    voxel_resolution: 0.01
     interested_classes: ["person", "tv", "chair"]
     class_colors: ["00FF00", "0000FF", "FFFF00"]
     debug: true
