@@ -21,10 +21,13 @@
 #include <utility>
 #include <limits>
 #include <algorithm>
+#include <math.h>
 
 #include "pcl/kdtree/kdtree_flann.h"
 #include "pcl/common/transforms.h"
 #include "pcl_conversions/pcl_conversions.h"
+#include "octomap/octomap_utils.h"
+
 
 #include "yolact_ros2_3d/YolactROS23D.hpp"
 
@@ -52,6 +55,10 @@ YolactROS23D::YolactROS23D()
   this->declare_parameter("voxel_resolution", 0.1);
   this->declare_parameter("interested_classes");
   this->declare_parameter("class_colors");
+  this->declare_parameter("probability_hit");
+  this->declare_parameter("probability_miss");
+  this->declare_parameter("threshold_minimum");
+  this->declare_parameter("threshold_maximum");
 
   this->configure();
   this->activate();
@@ -73,6 +80,12 @@ YolactROS23D::on_configure(const rclcpp_lifecycle::State & state)
   this->get_parameter("interested_classes", interested_classes_);
   this->get_parameter("voxel_resolution", voxel_res_);
   this->get_parameter("class_colors", class_colors_);
+
+  this->get_parameter("probability_hit", probability_hit_);
+  this->get_parameter("probability_miss", probability_miss_);
+  this->get_parameter("threshold_minimum", threshold_minimum_);
+  this->get_parameter("threshold_maximum", threshold_maximum_);
+
 
   return CallbackReturnT::SUCCESS;
 }
@@ -188,17 +201,19 @@ YolactROS23D::timer_callback()
           current_detection.class_name) == interested_classes_.end()))
         {
           RCLCPP_WARN(this->get_logger(),
-            "Last pointcloud is more than 200ms old and thus no processing taking place.");
+            "Detection of class %s ignored because either is not included in interested classes or probability of %.2f below minimum %.2f.",
+            current_detection.class_name.c_str(), current_detection.score, minimum_probability_);
         } else {
           // get the part of the pointcloud that corresponds with the 2d bonding box (detection):
           auto detection_cloud = get_detection_cloud(current_detection, cloud);
           if (!detection_cloud->empty()) {
             RCLCPP_INFO(this->get_logger(),
-              "Detection cloudpoint not empty. It contains %d points. Processing.",
-              detection_cloud->points.size());
+              "Detection cloudpoint not empty. It contains %d points with probability %.2f. Processing.",
+              detection_cloud->points.size(), current_detection.score);
             pcl::KdTreeFLANN<pcl::PointXYZRGB> kdtree;
             kdtree.setInputCloud(detection_cloud);
-            get_octree_from_detection(kdtree, current_detection, cloud, detection_octree, current_detection.score);
+            double log_odds = octomap::logodds(current_detection.score);
+            get_octree_from_detection(kdtree, current_detection, cloud, detection_octree, log_odds);
             // publish point cloud
             sensor_msgs::msg::PointCloud2 out_cloud;
             pcl::toROSMsg(*detection_cloud, out_cloud);
@@ -270,10 +285,6 @@ YolactROS23D::get_detection_cloud(
       auto pc_index = ((j + detection.box.y1) * last_image_->width) + (i + detection.box.x1);
       auto point = cloud->at(pc_index);
 
-      // double dist = sqrt(point.x * point.x + point.y * point.y + point.z + point .z);
-
-      //if (dist >= 3.0) continue;
-
       point.r = color_point.r;
       point.g = color_point.g;
       point.b = color_point.b;
@@ -293,7 +304,7 @@ YolactROS23D::get_octree_from_detection(
   const yolact_ros2_msgs::msg::Detection & detection,
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
   std::shared_ptr<octomap::ColorOcTree> octree,
-  double probability)
+  double log_odds)
 {
   if (octree != nullptr) {
     int detection_center_x = detection.box.x1 + (detection.mask.width / 2);
@@ -305,7 +316,7 @@ YolactROS23D::get_octree_from_detection(
       point_3d_in_detection_center_index.x,
       point_3d_in_detection_center_index.y,
       point_3d_in_detection_center_index.z);
-    expand_octree(octomap_point_3d_in_detection_center_index, kdtree, octree, probability);
+    expand_octree(octomap_point_3d_in_detection_center_index, kdtree, octree, log_odds);
   }
 }
 
@@ -314,7 +325,7 @@ YolactROS23D::expand_octree(
   const octomap::point3d & point,
   pcl::KdTreeFLANN<pcl::PointXYZRGB> & kdtree,
   std::shared_ptr<octomap::ColorOcTree> octree,
-  double probability)
+  double log_odds)
 {
   std::vector<int> k_indices;
   std::vector<float> k_sqr_distances;
@@ -328,16 +339,15 @@ YolactROS23D::expand_octree(
 
   if (kdtree.radiusSearch(colpoint, voxel_res_ / 2.0, k_indices, k_sqr_distances, 1) > 0) {
     octree->updateNode(colpoint.x, colpoint.y, colpoint.z, false);
-    octree->setNodeValue(colpoint.x, colpoint.y, colpoint.z, probability, true);
+    octree->setNodeValue(colpoint.x, colpoint.y, colpoint.z, log_odds, true);
     octree->setNodeColor(colpoint.x, colpoint.y, colpoint.z, colpoint.r, colpoint.g, colpoint.b);
 
     for (double dx = -voxel_res_; dx <= (voxel_res_ + 0.001); dx += voxel_res_) {
       for (double dy = -voxel_res_; dy <= (voxel_res_ + 0.001); dy += voxel_res_) {
         for (double dz = -voxel_res_; dz <= (voxel_res_ + 0.001); dz += voxel_res_) {
-
           octomap::point3d p3d(point.x() + dx, point.y() + dy, point.z() + dz);
           if (octree->search(p3d) == nullptr) {
-            expand_octree(p3d, kdtree, octree, probability);
+            expand_octree(p3d, kdtree, octree, log_odds);
           }
         }
       }
@@ -348,17 +358,11 @@ YolactROS23D::expand_octree(
 std::shared_ptr<octomap::ColorOcTree>
 YolactROS23D::get_initial_octree()
 {
-  double probHit, probMiss, thresMin, thresMax;
-  probHit = 0.7;
-  probMiss = 0.4;
-  thresMin = 0.12;
-  thresMax = 0.97;
-
   auto octree = std::make_shared<octomap::ColorOcTree>(voxel_res_);
-  octree->setProbHit(probHit);
-  octree->setProbMiss(probMiss);
-  octree->setClampingThresMin(thresMin);
-  octree->setClampingThresMax(thresMax);
+  octree->setProbHit(probability_hit_);
+  octree->setProbMiss(probability_miss_);
+  octree->setClampingThresMin(threshold_minimum_);
+  octree->setClampingThresMax(threshold_maximum_);
 
   return octree;
 }

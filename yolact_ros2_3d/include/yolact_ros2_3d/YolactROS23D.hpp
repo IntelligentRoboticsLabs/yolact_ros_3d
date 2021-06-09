@@ -91,6 +91,10 @@ private:
   std::vector<std::string> class_colors_;
   double minimum_probability_, maximum_detection_threshold_;
   double voxel_res_;
+  double probability_hit_;
+  double probability_miss_;
+  double threshold_minimum_;
+  double threshold_maximum_;
 
   bool timestamps_diff_long(
     builtin_interfaces::msg::Time & t1, builtin_interfaces::msg::Time & t2,
